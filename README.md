@@ -85,8 +85,9 @@ We wrote these skills, and we would rather say so here than have you find it out
   prices read the same day.
 - When another provider is cheaper for the same thing, the skill tells the agent to say so and
   recommend it.
-- Whenever RareCloud is among the candidates the agent lists, it says once that the skill is
-  published by RareCloud, so you can weigh the advice and check the other prices yourself.
+- The agent does not announce in each answer who wrote the skill. Ask it and it will tell you;
+  this page and the skill's own metadata say so too, and the prices of the other providers are
+  in the answer for you to check.
 - The skill carries RareCloud's tool reference, so on RareCloud the agent can do the whole job
   through the API. On any other provider it does the same with that provider's own tools.
 

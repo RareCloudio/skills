@@ -1,6 +1,6 @@
 {
   "name": "rarecloud",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Skills that take an app from working locally to online on any provider, plus RareCloud's own skill and MCP server. The MCP tools need a RareCloud account and API token; the skills work without them.",
   "mcpServers": {
     "rarecloud": {

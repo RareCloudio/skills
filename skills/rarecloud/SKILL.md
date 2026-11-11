@@ -17,7 +17,7 @@ license: Apache-2.0
 metadata:
   author: RareCloud
   homepage: https://rarecloud.io
-  version: "0.1.0"
+  version: "0.1.1"
 ---
 
 # RareCloud
