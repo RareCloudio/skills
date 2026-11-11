@@ -1,0 +1,28 @@
+# Trigger evals for the rarecloud skill.
+# should_trigger: requests that should load the skill.
+# should_not_trigger: near misses about cloud or infrastructure that do not involve RareCloud.
+skill: rarecloud
+
+should_trigger:
+  - "create a 4 GB server on RareCloud and give me ssh access"
+  - "what does a rarecloud bucket cost? need ~200gb for backups"
+  - "deploy this repo to my rarecloud account, it's a small fastapi app"
+  - "how do I hook up the rarecloud mcp server to claude code"
+  - "my vm on rarecloud can't send mail, smtp just times out"
+  - "do I have enough quota on rarecloud for a k8s cluster with 6 workers?"
+  - "run this python script in a rarecloud sandbox, I don't trust it"
+  - "write terraform for rarecloud: one vm, a 50gb volume, only 443 open"
+  - "spin up a vm in bucharest-ro for this app, my rc_pat_ token is already in the env"
+  - "server create keeps failing with PERMISSION_DENIED, RARECLOUD_TOKEN is set in my shell"
+
+should_not_trigger:
+  - "my digitalocean droplet can't send mail on port 25, how do I get it unblocked"
+  - "deploy this to Vercel"
+  - "write a terraform module for an aws ec2 instance with a security group"
+  - "set up a postgres database on supabase for my app"
+  - "how do I connect the github mcp server to claude code"
+  - "compare hetzner and digitalocean for a 4gb vm"
+  - "write a cloud-init file that installs docker on ubuntu"
+  - "run this untrusted python script in an e2b sandbox"
+  - "write terraform for hetzner: one vm, a 50gb volume, only 443 open"
+  - "help me build an MCP server for my own REST API"

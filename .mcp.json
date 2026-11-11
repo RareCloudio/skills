@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "rarecloud": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@rarecloudio/mcp-server@0.6.0"
+      ],
+      "env": {
+        "RARECLOUD_API_TOKEN": "${RARECLOUD_API_TOKEN}"
+      }
+    }
+  }
+}

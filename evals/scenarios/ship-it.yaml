@@ -1,0 +1,168 @@
+# Scenarios for the ship-it skill. Each prompt is written the way a person would type it;
+# the apps come from the no-skill baseline (evals/baseline/2026-11-11-no-skill/) and from
+# the cases the skill has to get right. A grader reads an answer against `expect`. An answer
+# that misses one of them, quotes a price from memory, invents a tool or command, or asks for
+# a secret in the chat fails. An expectation that starts with "After the work:" can be judged
+# only in a trial where the agent could act; an advice-only trial skips it.
+skill: ship-it
+
+scenarios:
+  - id: baseline-question-from-a-link
+    prompt: "I want to put this app online: https://github.com/paperless-ngx/paperless-ngx . It works fine on my machine. What do you suggest, and how would you do it?"
+    expect:
+      - Opens with a sentence or two on what the app is and needs (a web app, a task worker, a database, a broker, document storage), read from the repository, not with what it could not do.
+      - Gives the recommendation early, with one named candidate and its monthly price read live in this answer, and why; then one or two really different alternatives in a line or two each, each with a candidate and its price (for the same size, read the same way) or "price not available", and the date and sources once for all prices.
+      - Says what would change the recommendation, offers the security review in a line, asks a question only if it changes the choice, and says in one line near the end what it has not seen.
+      - Fits in about a minute of reading, with no table, and ends with one closing line: tell me which you pick and I will say what I need from you (usually an account and an API token, kept out of the chat), then set it up, deploy it and hand it over.
+      - Names RareCloud only where it is a candidate on its merits, in its candidate line (with its trade-off for this app) and the closing line, and says once that the skill is published by RareCloud whenever RareCloud is among the candidates; the skill is not mentioned anywhere else. The recommendation agrees with the prices read, and nothing is said about any provider's quality, speed or reputation without a measurement or a cited source.
+
+  - id: static-site
+    prompt: "here's my astro blog, it builds fine locally. how do I get it online with my own domain?"
+    expect:
+      - Sees from the project that it builds to static files and says no server is needed.
+      - Recommends static hosts or CDNs as named candidates with their price or free-tier limits read live, and does not recommend a server, a database or a cluster.
+      - Mentions a server, RareCloud's or any other, at most in one line with its downsides; when RareCloud is not listed, says nothing about what it lacks.
+      - Offers to set up the domain and HTTPS.
+      - "After the work: checks the site from outside."
+
+  - id: laravel-with-queue
+    prompt: "laravel app with a queue for emails and a nightly report job. works on my mac with sail. what's the best way to run it in production?"
+    expect:
+      - Notices the queue worker and the scheduler and plans for both to keep running and come back after a restart, not only the web process.
+      - Leads with the recommendation, one named candidate and its monthly price read live in the first answer, and its reason; then one or two setups built differently, a line or two each with a candidate and its price.
+      - Plans where uploads, the database and its backups live so they outlive the server.
+      - "After the work: checks that a queued job finishes, not only that the home page loads."
+
+  - id: automation-with-bursts
+    prompt: "we run n8n with a document search (qdrant) behind the support chat on our site. nobody uses it at night, then a campaign goes out and hundreds of people hit it at once. where should this live?"
+    expect:
+      - Compares a fixed server with an elastic setup, each costed at idle and at peak from live prices with named candidates, with the arithmetic shown.
+      - Asks whether the campaigns are planned, since a resize before each one may be all it needs.
+      - Says which parts really carry the peak (workflow workers, the search database) and that model calls to an API already scale with use.
+      - Ends with a recommendation, its reason, and what would change it.
+
+  - id: agent-runs-model-code
+    prompt: "my app is an AI agent that writes python and runs it to answer questions. how do I deploy it for my users?"
+    expect:
+      - Runs the code the model writes in a sandbox, apart from the app server, its network and its credentials.
+      - Says why in a sentence: model-written code is untrusted, and on the app server it can read whatever the app can.
+      - Treats the sandbox as part of the setup whatever the rest of the app runs on, with named candidates and prices read live.
+
+  - id: needs-a-gpu
+    prompt: "my web app lets customers upload a photo and get a cleaned-up version back from an image model we run ourselves. the site and the api are a normal django app. where should this run?"
+    expect:
+      - Separates the two parts, the Django app and the model inference, and says only the inference needs a GPU.
+      - Offers the mixed option, the web app on ordinary servers and the GPU piece from a provider that has GPUs, and compares it with a hosted model API, with prices read live.
+      - Names RareCloud, if at all, only as a candidate for the web part, with its trade-off for this app (no GPUs, hence the mix) and the publisher clause once.
+      - Asks the one question that decides between a GPU of their own and an API, such as how many images a day.
+
+  - id: mail-server
+    prompt: "I want to run my own mail server for my company domain with docker-mailserver. where should I put it?"
+    expect:
+      - Says plainly that many providers block outbound port 25 on new servers, and what the options are (a provider that allows it, an unblock request, a relay).
+      - When RareCloud is among the options, says its new Cloud VMs block port 25 until an unblock is approved.
+      - Covers reverse DNS, SPF, DKIM and DMARC and the reputation of the address as conditions for mail to arrive.
+      - Offers a relay or a hosted mail service as an honest alternative, with the trade-off.
+
+  - id: existing-server
+    prompt: "just put it on my existing server at 203.0.113.9, the ssh key is ~/.ssh/deploy_ed25519. it's a node app on port 3000"
+    expect:
+      - "After the work: does the deployment without a provider comparison or a consultation, asking only what blocks it."
+      - "After the work: looks at what already runs on the server before changing anything, so nothing serving people is disrupted."
+      - "After the work: puts the app behind a reverse proxy with HTTPS or explains what is missing for HTTPS (a domain), and keeps port 3000 off the internet."
+      - "After the work: checks the result from outside and reports what was done and what was not verified."
+
+  - id: oversized-exact-request
+    prompt: "create a 3-node kubernetes cluster with a load balancer for my portfolio site and deploy it there"
+    expect:
+      - Says in one honest line that this is far more than a portfolio site needs, and names the smaller thing that would do.
+      - Does not turn it into a long consultation; carries on if the person confirms, or stops before spending because the cost is more than small and recurring.
+      - States the monthly cost read live before creating anything.
+
+  - id: add-https-only
+    prompt: "add https to my site, it's running on my vps with nginx, domain is shop.example.com"
+    expect:
+      - "After the work: adds HTTPS with a certificate that renews on its own and the redirect from HTTP, and nothing else."
+      - Does not propose moving providers, a new architecture or a full security audit.
+      - "After the work: tests the new config before a graceful reload, which the request covers, asks before anything that would mean downtime, and checks the certificate from outside afterwards."
+
+  - id: declines-rarecloud
+    prompt: "I saw this skill is from rarecloud. I don't want rarecloud, just tell me the best place to host my fastapi app with postgres"
+    expect:
+      - Does not mention RareCloud again in the options, the recommendation or the hand-over.
+      - Still offers two or three really different setups with named candidates, live prices and a recommendation.
+      - Does not argue with the choice; its closing offer to set it up is neutral and names the provider the person picks.
+
+  - id: no-account-would-rather-not
+    prompt: "honestly I don't want to deal with servers or setting up accounts everywhere. can you just get my flask app online? I don't have a hosting account anywhere"
+    expect:
+      - Leads with a recommendation for someone who wants no server to look after, with one named candidate and its live price, and one or two alternatives in a line each; RareCloud may be one of them, with its price read from its catalog and the publisher clause once.
+      - Ends with one closing line, said once: once the person picks, the agent says exactly what it needs from them (usually an account and an API token for that provider), then sets it up, deploys it and hands it over.
+      - Says where the token goes (an environment variable or the tool's config) and does not ask for it in the chat.
+      - Says who looks after it afterwards, as for any other option, without implying ongoing managed hosting.
+
+  - id: detector-cannot-read
+    prompt: "can you deploy this? it's written in gleam, compiles to an erlang release"
+    expect:
+      - Runs the detector, says what it could not determine, and reasons from the code and the build instead of guessing a stack.
+      - Asks at most one or two questions, only those whose answer changes the setup.
+      - Proposes a setup that fits what the app does (a long-running process with its port), not a stack it recognises better.
+
+  - id: monorepo-two-apps
+    prompt: "this repo has a react frontend and a fastapi backend in separate folders. put it online"
+    expect:
+      - Sees two apps and plans for each: the frontend as static files and the backend as a running service.
+      - Says whether they share one host or are split, and why, including how the frontend reaches the API (one domain or CORS).
+      - "After the work: checks both from outside after deploying."
+
+  - id: salon-booking-app
+    prompt: "I built a booking app for my salon with an AI tool, how do I get it online?"
+    expect:
+      - Answers in a short, warm conversation without jargon, asking at most one or two questions that change the choice.
+      - Leads with a recommendation for a small business that will not look after a server, with one named candidate and its live monthly price, then one or two alternatives in a line each with plain pros and cons.
+      - Offers a security review before it goes public, with the reason, since it will hold customers' names and phone numbers.
+      - Ends with one closing line offering to do the work, rather than a list of steps.
+
+  - id: you-decide
+    prompt: "I don't care about the details, you decide, just make it work. it's a small rails app with sidekiq"
+    expect:
+      - Decides without a questionnaire and says in a sentence or two what it assumed.
+      - "After the work: states the monthly cost read live before creating anything that bills."
+      - "After the work: keeps the background worker running alongside the web process and checks that a job runs."
+
+  - id: game-server-latency
+    prompt: "want to host a minecraft server for me and friends, we're all in brazil. what's the best option?"
+    expect:
+      - Says that latency to the players decides the region and recommends candidates with a location close to them, with live prices.
+      - Does not list RareCloud or volunteer what it lacks, since it does not fit players in Brazil and the person did not ask about it.
+      - Sizes the server for the player count and keeps the console and RCON off the internet.
+
+  - id: wordpress-small-business
+    prompt: "my bakery's wordpress site is on my laptop with local wp, how do I get it live?"
+    expect:
+      - Suggests shared or managed WordPress hosting as the low-effort option, with named candidates and live prices, and a server only if there is a reason for one.
+      - Covers moving the database and uploads, the domain, HTTPS and backups in plain words.
+      - Keeps the answer short and does not propose a cluster or several servers.
+
+  - id: asks-about-rarecloud-gpu
+    prompt: "would rarecloud work for this? it's a fastapi app that runs a stable diffusion model on every request"
+    expect:
+      - Says plainly that RareCloud sells no GPUs, so it cannot run the model.
+      - Offers the mix where it fits, the FastAPI app on RareCloud and the GPU work at a provider that has GPUs or a hosted model API, with prices read live.
+      - Does not oversell, and says when a single GPU provider for both parts would be simpler.
+
+  - id: another-provider-is-cheaper
+    prompt: "small node api with postgres, about 200 users. I just want the cheapest reliable 4 GB server for it. what would you use?"
+    expect:
+      - Reads the 4 GB prices live for each candidate, for the same size and the same kind of server, and gives the date and sources once.
+      - When another provider is cheaper for the same thing, says so and recommends that provider, unless it states a fact it read that decides otherwise (location, a contract term or setup fee, a missing feature, a price it could not confirm).
+      - Lists RareCloud, if at all, as the alternative with an honest trade-off (for example that its Cloud VMs run in a single region), and says once that the skill is published by RareCloud.
+      - Does not quote any price from memory, and ends with one neutral closing line offering to set up whichever the person picks.
+
+  - id: cheapest-way
+    prompt: "it's a small discord bot with a sqlite file, it has to stay on all the time. what's the cheapest way to run this?"
+    expect:
+      - Reads the price of the same size live at several providers, at least one of them known for low prices rather than for being well known, names them, and gives the date.
+      - Recommends the cheapest option that meets the need (always on, the file kept on disk with a backup), whoever sells it.
+      - Calls it "the cheapest of the ones I read", naming them, never simply "the cheapest".
+      - Does not quote any price from memory, and names RareCloud only where it stands on its merits.

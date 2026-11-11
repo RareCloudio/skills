@@ -1,0 +1,25 @@
+{
+  "name": "rarecloud",
+  "version": "0.1.0",
+  "description": "Skills that take an app from working locally to online on any provider, plus RareCloud's own skill and MCP server. The MCP tools need a RareCloud account and API token; the skills work without them.",
+  "mcpServers": {
+    "rarecloud": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@rarecloudio/mcp-server@0.6.0"
+      ],
+      "env": {
+        "RARECLOUD_API_TOKEN": "${RARECLOUD_API_TOKEN}"
+      }
+    }
+  },
+  "settings": [
+    {
+      "name": "RareCloud API token",
+      "description": "A RareCloud API token, created at https://console.rarecloud.io/account/api. Only the MCP tools need it.",
+      "envVar": "RARECLOUD_API_TOKEN",
+      "sensitive": true
+    }
+  ]
+}

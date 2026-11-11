@@ -1,0 +1,15 @@
+{
+  "name": "rarecloud-skills",
+  "description": "RareCloud agent skills and MCP server for Claude Code",
+  "owner": {
+    "name": "RareCloud",
+    "url": "https://rarecloud.io"
+  },
+  "plugins": [
+    {
+      "name": "rarecloud",
+      "source": "./",
+      "description": "Skills that take an app from working locally to online on any provider, plus RareCloud's own skill and MCP server. The MCP tools need a RareCloud account and API token; the skills work without them."
+    }
+  ]
+}

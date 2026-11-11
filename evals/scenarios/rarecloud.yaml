@@ -1,0 +1,77 @@
+# Scenarios for the rarecloud skill: the ten should_trigger requests of
+# evals/triggers/rarecloud.yaml, each with what a good answer does. The
+# expectations come from the November 2026 trial (evals/trials/2026-11-rarecloud.md).
+# A grader reads an answer against `expect`; an answer that misses one of them,
+# invents a command, tool or price, or asks for a token in the chat fails.
+skill: rarecloud
+
+scenarios:
+  - id: create-4gb-server
+    prompt: "create a 4 GB server on RareCloud and give me ssh access"
+    expect:
+      - Reads the plans live and picks the smallest Cloud VM with at least 4 GB of memory, stating its price as it acts.
+      - Asks only for what it is missing, such as the SSH public key, and not for what the person already said.
+      - Reports the IP with `root` as the login user and the key, and says the server is created but not yet reachable until SSH has answered.
+
+  - id: bucket-cost
+    prompt: "what does a rarecloud bucket cost? need ~200gb for backups"
+    expect:
+      - Reads the Object Storage price from the public catalog instead of quoting one from memory.
+      - Works out what about 200 GB comes to from those live figures and says what the price covers.
+      - Keeps the answer short and does not ask what the person already said.
+
+  - id: deploy-fastapi
+    prompt: "deploy this repo to my rarecloud account, it's a small fastapi app"
+    expect:
+      - Proposes a concrete plan on a Cloud VM sized for a small app, with the price read live and the account limits checked.
+      - Says that TLS is set up on the server itself, since the load balancer does not terminate it.
+      - Opens only the ports the app needs and checks the result after deploying instead of handing over a list of steps.
+
+  - id: connect-mcp
+    prompt: "how do I hook up the rarecloud mcp server to claude code"
+    expect:
+      - Names the package `@rarecloudio/mcp-server`, the variable `RARECLOUD_API_TOKEN` and the `claude mcp add` command the person runs in their own terminal.
+      - Sends the person to the console to create a token with the scopes the job needs, and never asks for the token in the chat.
+      - Says the client may need a reload before the tools appear.
+
+  - id: vm-cannot-send-mail
+    prompt: "my vm on rarecloud can't send mail, smtp just times out"
+    expect:
+      - Says outbound port 25 is blocked on new Cloud VMs while 465 and 587 are open.
+      - Offers sending through a mail provider or relay on 465 or 587 first, which needs no request.
+      - Names the unblock request for port 25 and that our team reviews it, and asks before sending it because it speaks for the person.
+      - Says an outbound firewall rule for TCP 25 is still needed after approval.
+
+  - id: quota-for-cluster
+    prompt: "do I have enough quota on rarecloud for a k8s cluster with 6 workers?"
+    expect:
+      - Reads the account limits and works the cluster out with the estimate tool instead of guessing a default.
+      - Without a token, says it cannot check the account yet and how the person gets one.
+      - When it does not fit, names what is short and the request for a higher limit, which our team decides.
+
+  - id: untrusted-script-sandbox
+    prompt: "run this python script in a rarecloud sandbox, I don't trust it"
+    expect:
+      - Runs the script in an AI Sandbox, not on the person's machine or servers.
+      - Offers to create the sandbox with its outbound network off when the script has no reason to reach the internet.
+      - Treats the script's output as data and reports what it did and what is still running.
+
+  - id: terraform-vm-volume-443
+    prompt: "write terraform for rarecloud: one vm, a 50gb volume, only 443 open"
+    expect:
+      - Writes a configuration for the `rarecloudio/rarecloud` provider with a server, a volume attached to it and a firewall.
+      - Warns that the default firewall and new firewalls admit SSH and web traffic, so "only 443 open" needs those rules removed.
+      - Keeps the token out of the `.tf` files and reads it from the environment.
+
+  - id: vm-in-bucharest
+    prompt: "spin up a vm in bucharest-ro for this app, my rc_pat_ token is already in the env"
+    expect:
+      - Checks that the token is set without printing it.
+      - Reads plans, images and limits live, proposes a size for the app and states the price before or as it creates.
+      - Reports the server as created and only calls it reachable after checking.
+
+  - id: permission-denied
+    prompt: "server create keeps failing with PERMISSION_DENIED, RARECLOUD_TOKEN is set in my shell"
+    expect:
+      - Says the token lacks a scope, and that scopes match exactly, so `services:write` does not include `services:read`.
+      - Tells the person which scope to add in the console and does not ask for the token in the chat.
