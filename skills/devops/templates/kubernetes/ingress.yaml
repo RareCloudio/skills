@@ -1,0 +1,34 @@
+# The Ingress alternative to gateway.yaml, for a cluster that already runs an ingress controller
+# and no Gateway API implementation. The Ingress API is stable and stays, but it is frozen: new
+# features go to the Gateway API. Use one of the two files, not both. See references/kubernetes.md.
+#
+# Placeholders, with the sample values the template is checked with:
+#   <APP>            the app's name (sample: shop)
+#   <HOST>           the name visitors type (sample: app.example.com)
+#   <INGRESS_CLASS>  from "kubectl get ingressclass" on this cluster (sample: traefik)
+#
+# HTTP to HTTPS redirects are controller-specific (an annotation or a middleware); look up the one
+# for the controller this cluster runs. In issuer.yaml, use the ingress solver shown there.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: <APP>
+  annotations:
+    cert-manager.io/issuer: letsencrypt
+spec:
+  ingressClassName: <INGRESS_CLASS>
+  tls:
+    - hosts:
+        - <HOST>
+      secretName: <APP>-tls
+  rules:
+    - host: <HOST>
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: <APP>
+                port:
+                  name: http

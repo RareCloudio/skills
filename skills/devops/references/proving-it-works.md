@@ -68,6 +68,15 @@ with no secret values in it). It covers:
   backups) and that it is theirs to do or to ask for; you set it up, you do not run it for them.
 - **What to watch,** and the trigger that would mean the next step up.
 
+Two rules keep a hand-over true, because the person will act on it later without you. Every
+command in it is one you ran, or tried the way they will run it: a hand-over in a trial told
+the owner to change a password with `docker compose up -d`, which did not apply the change, and
+nobody had run it. And a statement about who runs or owns a piece of infrastructure (a package
+mirror, a network, a DNS service) is written only when you read it from the system, its config
+or the provider's own page; a host name does not say who runs it. When you did not read it,
+name the thing by what you saw ("the package mirror `<host>` named in
+`/etc/apt/sources.list.d/`").
+
 Something like:
 
 ```

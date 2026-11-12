@@ -1,0 +1,118 @@
+# The app itself: two or more replicas, probes that mean something, requests and limits, and a
+# security context that passes the "restricted" Pod Security profile.
+# See references/kubernetes.md for how to choose the numbers.
+#
+# Placeholders, with the sample values the template is checked with:
+#   <APP>             the app's name (sample: shop)
+#   <IMAGE>           the image with a fixed tag or a digest, never :latest
+#                     (sample: ghcr.io/stefanprodan/podinfo:6.17.0)
+#   <PORT>            the port the app listens on inside the container (sample: 9898)
+#   <READY_PATH>      answers 200 only when the app can serve, its database reached
+#                     (sample: /readyz)
+#   <LIVE_PATH>       answers 200 while the process is not stuck; checks nothing outside the
+#                     process, or a database outage restarts every pod (sample: /healthz)
+#   <RUN_AS_UID>      a numeric non-root user id the image works as; an image that names its user
+#                     ("USER app") needs it, or runAsNonRoot refuses to start it (sample: 100)
+#   <CPU_REQUEST>     what one pod uses at ordinary load (sample: 50m)
+#   <MEMORY_REQUEST>  what one pod uses at ordinary load, plus headroom (sample: 64Mi)
+#   <MEMORY_LIMIT>    the most one pod may use before the kernel kills it (sample: 128Mi)
+#
+# It reads its settings from a ConfigMap made by kustomization.yaml and its secrets from a Secret
+# named <APP>-secrets, which you create in the cluster and never commit (see the reference).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: <APP>
+  labels:
+    app.kubernetes.io/name: <APP>
+spec:
+  # No "replicas" here: hpa.yaml owns the count (at least 2), and a number in this file would
+  # reset it on every apply. Without the autoscaler, add "replicas: 2".
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: <APP>
+  strategy:
+    # Start a new pod before an old one stops, so capacity never drops during a rollout.
+    # With a ReadWriteOnce volume use "type: Recreate" instead: the new pod cannot attach the
+    # volume while the old one holds it, and the rollout hangs.
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: <APP>
+    spec:
+      automountServiceAccountToken: false  # the app does not talk to the Kubernetes API
+      # imagePullSecrets:          # for a private registry, see the reference
+      #   - name: <APP>-registry
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: <RUN_AS_UID>
+        runAsGroup: <RUN_AS_UID>
+        fsGroup: <RUN_AS_UID>
+        seccompProfile:
+          type: RuntimeDefault
+      # Prefer different nodes, so one node going away does not take every replica with it.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: <APP>
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: app
+          image: <IMAGE>
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: <PORT>
+          envFrom:
+            - configMapRef:
+                name: <APP>-config
+            - secretRef:
+                name: <APP>-secrets
+          # Holds liveness and readiness back until the app has started, so a slow start is
+          # not mistaken for a hang: up to 30 x 2 seconds here.
+          startupProbe:
+            httpGet:
+              path: <LIVE_PATH>
+              port: http
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: <READY_PATH>
+              port: http
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: <LIVE_PATH>
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            # No CPU limit on purpose: a limit throttles the app even when the node is idle.
+            # Memory has a limit, because memory cannot be throttled, only reclaimed by a kill.
+            requests:
+              cpu: <CPU_REQUEST>
+              memory: <MEMORY_REQUEST>
+            limits:
+              memory: <MEMORY_LIMIT>
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp  # writable scratch space, since the root filesystem is read-only
+          emptyDir:
+            sizeLimit: 256Mi

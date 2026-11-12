@@ -1,0 +1,36 @@
+# A cert-manager Issuer that gets certificates from Let's Encrypt, proving control of the name
+# with an HTTP-01 challenge answered through the app's Gateway. It lives in the app's namespace,
+# next to the Gateway it uses. See references/kubernetes.md.
+#
+# Placeholders, with the sample values the template is checked with:
+#   <APP>          the app's name; the Gateway in gateway.yaml has the same name (sample: shop)
+#   <ACME_EMAIL>   a real address that receives the certificate authority's account
+#                  notices; the sample only passes the check (sample: ops@localhost)
+#   <ACME_SERVER>  start with staging, whose certificates browsers do not trust but whose rate
+#                  limits are generous; switch to production once a staging certificate is
+#                  issued, then delete the <APP>-tls Secret so a trusted one replaces it.
+#                  staging:    https://acme-staging-v02.api.letsencrypt.org/directory
+#                  production: https://acme-v02.api.letsencrypt.org/directory
+#                  (sample: https://acme-staging-v02.api.letsencrypt.org/directory)
+#
+# With ingress.yaml instead of a Gateway, replace the solver with:
+#   - http01:
+#       ingress:
+#         ingressClassName: <INGRESS_CLASS>
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: letsencrypt
+spec:
+  acme:
+    server: <ACME_SERVER>
+    email: <ACME_EMAIL>
+    privateKeySecretRef:
+      name: letsencrypt-account-key  # cert-manager creates it; it holds the ACME account key
+    solvers:
+      - http01:
+          gatewayHTTPRoute:
+            parentRefs:
+              - name: <APP>
+                kind: Gateway
+                sectionName: http

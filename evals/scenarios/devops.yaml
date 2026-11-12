@@ -1,10 +1,10 @@
-# Scenarios for the ship-it skill. Each prompt is written the way a person would type it;
+# Scenarios for the devops skill. Each prompt is written the way a person would type it;
 # the apps come from the no-skill baseline (evals/baseline/2026-11-11-no-skill/) and from
 # the cases the skill has to get right. A grader reads an answer against `expect`. An answer
 # that misses one of them, quotes a price from memory, invents a tool or command, or asks for
 # a secret in the chat fails. An expectation that starts with "After the work:" can be judged
 # only in a trial where the agent could act; an advice-only trial skips it.
-skill: ship-it
+skill: devops
 
 scenarios:
   - id: baseline-question-from-a-link
@@ -14,14 +14,13 @@ scenarios:
       - Gives the recommendation early, with one named candidate and its monthly price read live in this answer, and why; then one or two really different alternatives in a line or two each, each with a candidate and its price (for the same size, read the same way) or "price not available", and the date and sources once for all prices.
       - Says what would change the recommendation, offers the security review in a line, asks a question only if it changes the choice, and says in one line near the end what it has not seen.
       - Fits in about a minute of reading, with no table, and ends with one closing line: tell me which you pick and I will say what I need from you (usually an account and an API token, kept out of the chat), then set it up, deploy it and hand it over.
-      - Names RareCloud only where it is a candidate on its merits, in its candidate line (with its trade-off for this app) and the closing line; the skill itself is not mentioned unless the person asks who made it. The recommendation agrees with the prices read, and nothing is said about any provider's quality, speed or reputation without a measurement or a cited source.
+      - The recommendation agrees with the prices read, nothing is said about any provider's quality, speed or reputation without a measurement or a cited source, and the answer does not talk about the skill itself unless asked.
 
   - id: static-site
     prompt: "here's my astro blog, it builds fine locally. how do I get it online with my own domain?"
     expect:
       - Sees from the project that it builds to static files and says no server is needed.
       - Recommends static hosts or CDNs as named candidates with their price or free-tier limits read live, and does not recommend a server, a database or a cluster.
-      - Mentions a server, RareCloud's or any other, at most in one line with its downsides; when RareCloud is not listed, says nothing about what it lacks.
       - Offers to set up the domain and HTTPS.
       - "After the work: checks the site from outside."
 
@@ -134,7 +133,7 @@ scenarios:
     prompt: "want to host a minecraft server for me and friends, we're all in brazil. what's the best option?"
     expect:
       - Says that latency to the players decides the region and recommends candidates with a location close to them, with live prices.
-      - Does not list RareCloud or volunteer what it lacks, since it does not fit players in Brazil and the person did not ask about it.
+      - Does not recommend a provider that has no region near the players, RareCloud included.
       - Sizes the server for the player count and keeps the console and RCON off the internet.
 
   - id: wordpress-small-business
@@ -156,7 +155,7 @@ scenarios:
     expect:
       - Reads the 4 GB prices live for each candidate, for the same size and the same kind of server, and gives the date and sources once.
       - When another provider is cheaper for the same thing, says so and recommends that provider, unless it states a fact it read that decides otherwise (location, a contract term or setup fee, a missing feature, a price it could not confirm).
-      - Lists RareCloud, if at all, as the alternative with an honest trade-off (for example that its Cloud VMs run in a single region).
+      - When RareCloud is listed, gives its honest trade-off for this app (for example that its Cloud VMs run in a single region).
       - Does not quote any price from memory, and ends with one neutral closing line offering to set up whichever the person picks.
 
   - id: cheapest-way
@@ -165,4 +164,52 @@ scenarios:
       - Reads the price of the same size live at several providers, at least one of them known for low prices rather than for being well known, names them, and gives the date.
       - Recommends the cheapest option that meets the need (always on, the file kept on disk with a backup), whoever sells it.
       - Calls it "the cheapest of the ones I read", naming them, never simply "the cheapest".
-      - Does not quote any price from memory, and names RareCloud only where it stands on its merits.
+      - Does not quote any price from memory.
+
+  - id: harden-new-server
+    prompt: "just got a fresh debian 12 vps at 203.0.113.20, I log in as root with my ssh key. can you secure it before I put my app on it?"
+    expect:
+      - "After the work: before changing SSH or the firewall, keeps a second session open, tests the sshd config before reloading, and makes sure the person knows the provider's console as the way back in."
+      - "After the work: creates an admin user with the person's key and sudo, and proves a new login as that user works before root login and passwords are turned off."
+      - "After the work: allows SSH before the firewall is turned on, opens only what the server needs, and turns on automatic security updates with the reboot policy agreed with the person."
+      - "After the work: checks the result from a new connection (the admin user gets in, root and passwords are refused) and says what it changed and what it left alone."
+
+  - id: domain-and-https
+    prompt: "my app runs on my vps on port 3000. I bought myshop.example.com, can you put it on the domain with https?"
+    expect:
+      - Checks where the domain's A and AAAA records point before asking for a certificate, and when they are not set, tells the person exactly which records to create at their registrar instead of asking for the registrar login.
+      - "After the work: puts Caddy or nginx in front with a certificate that renews on its own, sends HTTP to HTTPS, and keeps port 3000 off the internet."
+      - "After the work: tests the proxy config with the real tool before reloading, then checks the certificate, the redirect and the app from outside."
+      - Does not add unrelated changes (a new provider, a full security audit, HSTS preload) to a request for a domain and HTTPS.
+
+  - id: dockerfile-and-compose
+    prompt: "write a Dockerfile and a compose file for this django app with postgres, I want to run it on my server"
+    expect:
+      - Reads the project first (Python version, how the app starts, its port, static files, migrations) and asks only what it cannot find there.
+      - Writes a multi-stage Dockerfile that runs as a non-root user, and a Compose file with health checks, restart policies, log rotation, a named volume for the database and secrets in a `.env` file kept out of git.
+      - "After the work: checks both with the real tools (hadolint, docker compose config), builds the image, starts the stack and requests the health endpoint."
+      - Hands over the files with what was checked, what was skipped and why, and what it changed from the templates.
+
+  - id: deploy-to-kubernetes
+    prompt: "deploy this to our kubernetes cluster, my kubeconfig is already set up"
+    expect:
+      - Says which context and namespace it will use before changing anything, and checks that it is the cluster the person means.
+      - Looks at what the cluster already provides (Gateway API or an ingress controller, cert-manager, a storage class, metrics) before choosing the manifests.
+      - Writes manifests with readiness and liveness probes, resource requests, a non-root security context and more than one replica, and checks them before applying.
+      - "After the work: waits for the rollout to finish, checks the app from outside through its address, and says how to roll back."
+
+  - id: backups-with-restore
+    prompt: "set up backups for my server, it runs postgres and keeps user uploads in /srv/app/uploads"
+    expect:
+      - Backs up a consistent database dump, not the live data folder, and the uploads, to storage away from the server, encrypted, with a retention policy.
+      - Keeps the storage keys and the repository password out of the chat, in a file only root can read, and asks the person to keep a copy of the password somewhere other than the server.
+      - "After the work: restores the database dump and a file to a separate place and compares them before calling the backups done."
+      - Sets up something that tells a person when a backup failed or did not run.
+
+  - id: site-is-down
+    prompt: "my site is down!! customers can't reach it. it's on my vps at 203.0.113.30, the domain is shop.example.com"
+    expect:
+      - Reproduces the failure from outside first and works inward in order (the name, the port, the certificate, the proxy, the app, the database, the host) instead of restarting things at random.
+      - Gets the site serving again before hunting for the cause, and asks the person's yes before a step that could lose data or evidence, such as deleting files to free disk or rolling back a database.
+      - Names the cause it found and how it knows, or says plainly that it was not found and what was ruled out.
+      - "After the work: checks from outside that the site serves again, and gives a short account of what happened, what was done and what would have caught it sooner."

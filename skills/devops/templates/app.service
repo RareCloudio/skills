@@ -1,0 +1,76 @@
+# A web app run by systemd, deployed as release folders with a `current` symlink.
+# Install as /etc/systemd/system/<APP_NAME>.service, then:
+#   systemd-analyze verify /etc/systemd/system/<APP_NAME>.service
+#   systemctl daemon-reload && systemctl enable --now <APP_NAME>
+#
+# Placeholders (sample values in brackets, used when this file is checked):
+#   <APP_NAME>    name of the service, its folders and its env file [shop]
+#   <APP_USER>    system user the app runs as, created with
+#                 `useradd --system --no-create-home --shell /usr/sbin/nologin <APP_USER>`
+#                 [shop]
+#   <EXEC_START>  absolute path of the program, then its arguments
+#                 [/usr/bin/node /srv/shop/current/dist/server.js]
+#
+# Layout: code in /srv/<APP_NAME>/releases/<id>, `current` points at one of them, owned by
+# root and readable by the app. Settings and secrets in /etc/<APP_NAME>/env (root:<APP_USER>,
+# mode 0640). Data the app writes goes in /var/lib/<APP_NAME>, which systemd creates and hands
+# to <APP_USER> (StateDirectory below); everything else on the system is read-only to it.
+
+[Unit]
+Description=<APP_NAME> web app
+Wants=network-online.target
+After=network-online.target
+# After 5 failed starts within 10 minutes systemd stops trying and marks the unit failed.
+# With RestartSec=5s a crash loop reaches that in under a minute, and the failure shows in
+# `systemctl --failed` instead of restarting forever.
+StartLimitIntervalSec=10min
+StartLimitBurst=5
+
+[Service]
+# exec: `systemctl start` fails when the program cannot be started at all (bad path, no
+# permission). With simple it reports success and the failure only shows in the journal.
+Type=exec
+User=<APP_USER>
+Group=<APP_USER>
+WorkingDirectory=/srv/<APP_NAME>/current
+EnvironmentFile=/etc/<APP_NAME>/env
+ExecStart=<EXEC_START>
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+StateDirectory=<APP_NAME>
+StateDirectoryMode=0750
+UMask=0027
+
+# Sandboxing. Each line removes something the app should not need; when the app breaks on
+# start, the journal names the denied path or call, and that one line is the one to relax.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+# AF_NETLINK lets the app list network interfaces (Node's os.networkInterfaces() throws
+# without it); drop it for a program that never does.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+# Not set on purpose: MemoryDenyWriteExecute=yes stops JIT compilers (Node.js, Java, PHP
+# with JIT) from starting. Add it for Go, Rust or C programs.
+# A port below 1024 needs: AmbientCapabilities=CAP_NET_BIND_SERVICE and the same capability
+# in CapabilityBoundingSet=. A reverse proxy in front on 80/443 avoids that.
+
+[Install]
+WantedBy=multi-user.target

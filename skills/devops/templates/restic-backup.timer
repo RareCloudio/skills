@@ -1,0 +1,22 @@
+# restic-backup.timer: starts restic-backup-<APP>.service once a day.
+#
+# Install as /etc/systemd/system/restic-backup-<APP>.timer, then:
+#   systemctl daemon-reload && systemctl enable --now restic-backup-<APP>.timer
+#   systemctl list-timers restic-backup-<APP>.timer     # shows the next and the last run
+# Placeholders:
+#   <APP>  short name of the app, the same as in the service (sample: shop)
+
+[Unit]
+Description=Daily backup of <APP>
+
+[Timer]
+# A quiet hour for the app; check the next runs with: systemd-analyze calendar '*-*-* 03:17'
+OnCalendar=*-*-* 03:17:00
+# Spread the start so several servers do not hit the storage at the same second.
+RandomizedDelaySec=15min
+# If the server was off at that time, run once soon after it boots.
+Persistent=true
+Unit=restic-backup-<APP>.service
+
+[Install]
+WantedBy=timers.target

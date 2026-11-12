@@ -1,0 +1,24 @@
+# Schedule for app-job.service. Install as /etc/systemd/system/<APP_NAME>-<JOB_NAME>.timer
+# (same name as the service), then:
+#   systemd-analyze calendar '<ON_CALENDAR>'      shows the next times it will fire
+#   systemctl daemon-reload && systemctl enable --now <APP_NAME>-<JOB_NAME>.timer
+#   systemctl list-timers <APP_NAME>-<JOB_NAME>.timer
+#
+# Placeholders (sample values in brackets, used when this file is checked):
+#   <APP_NAME>     the app's service name [shop]
+#   <JOB_NAME>     short name of the job [cleanup]
+#   <ON_CALENDAR>  when to run, in systemd calendar syntax, server time zone unless a zone
+#                  is written at the end [*-*-* 03:15:00]
+
+[Unit]
+Description=Run <APP_NAME> <JOB_NAME> on a schedule
+
+[Timer]
+OnCalendar=<ON_CALENDAR>
+# Spread the start over a few minutes so jobs on many servers do not all start at once.
+RandomizedDelaySec=5min
+# If the server was off at the scheduled time, run once soon after it boots.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

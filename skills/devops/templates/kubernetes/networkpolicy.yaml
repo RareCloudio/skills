@@ -1,0 +1,25 @@
+# Lets in connections to the app's pods only from pods in the app's own namespace and from the
+# namespace of the gateway or ingress controller; every other pod in the cluster is refused.
+# Without a policy, any pod in any namespace can reach these pods directly.
+# See references/kubernetes.md, "Keep other workloads away from the app".
+#
+# Placeholders, with the sample values the template is checked with:
+#   <APP>                the app's name, also the namespace (sample: shop)
+#   <GATEWAY_NAMESPACE>  where the gateway or ingress controller runs, from
+#                        "kubectl get pods -A" (sample: envoy-gateway-system)
+#
+# A policy is enforced only by a network plugin that implements NetworkPolicy; check from a pod in
+# another namespace that a request to the Service now times out.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: <APP>-ingress
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: <GATEWAY_NAMESPACE>

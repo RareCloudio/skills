@@ -2,8 +2,8 @@
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "rarecloud",
   "displayName": "RareCloud",
-  "version": "0.1.1",
-  "description": "Skills that take an app from working locally to online on any provider, plus RareCloud's own skill and MCP server. The MCP tools need a RareCloud account and API token; the skills work without them.",
+  "version": "0.2.0",
+  "description": "Skills that turn a coding agent into a DevOps engineer: set up and secure Linux servers, deploy to a server or Kubernetes on any provider, and fix what breaks. Includes RareCloud's own skill and MCP server, which need a RareCloud account and API token; the skills work without them.",
   "author": {
     "name": "RareCloud",
     "url": "https://rarecloud.io"

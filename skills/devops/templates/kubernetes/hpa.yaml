@@ -1,0 +1,29 @@
+# Adds and removes replicas with CPU use. It needs a metrics source in the cluster (check with
+# "kubectl top pods"; most managed clusters ship metrics-server) and CPU requests on the pods,
+# because the target is a percentage of the request. See references/kubernetes.md.
+#
+# Placeholders, with the sample values the template is checked with:
+#   <APP>           the app's name (sample: shop)
+#   <MAX_REPLICAS>  the most the cluster, the database's connection limit and the budget can
+#                   carry at once (sample: 6)
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: <APP>
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: <APP>
+  minReplicas: 2  # one can be replaced or evicted while the other serves
+  maxReplicas: <MAX_REPLICAS>
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300  # wait five quiet minutes before removing a pod

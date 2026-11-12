@@ -1,0 +1,29 @@
+# logrotate-app: rotation for an app that writes its own log files under /var/log/<APP>/.
+# Install as /etc/logrotate.d/<APP>, owned by root with mode 0644 (logrotate ignores a file
+# with another owner), then check it with: logrotate -d /etc/logrotate.d/<APP>
+#
+# Placeholders, with the sample values the template was checked with:
+#   <APP>        the app's name and its folder under /var/log (sample: shop)
+#   <APP_USER>   the user that owns that folder, usually the user the app runs as (sample: shop)
+#   <APP_GROUP>  that user's group (sample: shop)
+#
+# Logs that go to the journal, or a container's stdout, are not rotated here: the journal
+# and the container runtime keep their own limits.
+
+/var/log/<APP>/*.log {
+    daily
+    rotate 14
+    missingok
+    notifempty
+    compress
+    # Keeps yesterday's file uncompressed, for an app still writing its last lines to it.
+    delaycompress
+    # Rotate as the app's user. Without it, logrotate skips a folder that a group other than
+    # root can write to ("parent directory has insecure permissions"), and with it, a log
+    # file owned by root in that folder fails with "Permission denied": chown it to the app.
+    su <APP_USER> <APP_GROUP>
+    # The app keeps its file open, so copy and empty it in place. Lines written during the
+    # copy can be lost. If the app reopens its log on a signal, use "create 0640 <APP_USER>
+    # <APP_GROUP>" with a postrotate that sends the signal, instead of copytruncate.
+    copytruncate
+}

@@ -1,0 +1,13 @@
+# healthcheck.timer: starts healthcheck.service every five minutes. No placeholders.
+# Check: systemd-analyze verify healthcheck.timer; after enabling, systemctl list-timers healthcheck
+
+[Unit]
+Description=Run the health check every five minutes
+
+[Timer]
+OnCalendar=*:0/5
+RandomizedDelaySec=30s
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

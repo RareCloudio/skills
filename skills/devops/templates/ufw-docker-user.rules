@@ -1,0 +1,33 @@
+# ufw: make ports that Docker publishes obey a list, through Docker's DOCKER-USER chain.
+#
+# Docker sends traffic for a published port through the nat table and the FORWARD chain, so
+# ufw's own rules never see it (references/firewall.md has the mechanism). Docker jumps to
+# DOCKER-USER first and leaves its content to you. These rules let in only the listed ports
+# from the public interface and drop every other new connection to a container from there.
+# Containers keep their outbound traffic, and the host and other containers still reach every
+# container directly.
+#
+# Install: append this whole block to the end of /etc/ufw/after.rules (IPv4) and again to the end
+# of /etc/ufw/after6.rules (IPv6, which Docker publishes too when a network has IPv6 enabled),
+# then reload. Keep a second SSH session open and a timed revert armed while you do it.
+#   sudo iptables-restore --test --noflush < block.rules    # syntax check before installing
+#   sudo ufw reload
+#   sudo iptables -S DOCKER-USER                             # the rules are loaded
+# Then test from another machine: the listed port answers, any other published port does not.
+#
+# The match is on the port the client asked for (--ctorigdstport), which is the published host
+# port, not the port inside the container. Add one RETURN line per public port.
+#
+# Placeholders:
+#   <PUBLIC_IF>    the interface that faces the internet, from `ip route show default`
+#                  (sample: eth0)
+#   <PUBLIC_PORT>  a published host port that should be reachable from the internet
+#                  (sample: 443)
+
+*filter
+:DOCKER-USER - [0:0]
+-A DOCKER-USER -m conntrack --ctstate RELATED,ESTABLISHED -j RETURN
+-A DOCKER-USER -i <PUBLIC_IF> -p tcp -m conntrack --ctorigdstport <PUBLIC_PORT> --ctdir ORIGINAL -j RETURN
+-A DOCKER-USER -i <PUBLIC_IF> -j DROP
+-A DOCKER-USER -j RETURN
+COMMIT

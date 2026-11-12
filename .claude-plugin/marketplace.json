@@ -9,7 +9,7 @@
     {
       "name": "rarecloud",
       "source": "./",
-      "description": "Skills that take an app from working locally to online on any provider, plus RareCloud's own skill and MCP server. The MCP tools need a RareCloud account and API token; the skills work without them."
+      "description": "Skills that turn a coding agent into a DevOps engineer: set up and secure Linux servers, deploy to a server or Kubernetes on any provider, and fix what breaks. Includes RareCloud's own skill and MCP server, which need a RareCloud account and API token; the skills work without them."
     }
   ]
 }

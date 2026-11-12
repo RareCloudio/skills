@@ -1,0 +1,61 @@
+# Runs the database migrations of one release, from that release's image, before its pods take
+# traffic. It is not in kustomization.yaml. The Kubernetes pipeline
+# (templates/ci/github-deploy-kubernetes.yaml, MIGRATION_JOB) gives it the release's tag and a
+# name of its own (<APP>-migrate-<release>), applies it, waits for it and applies the rest only
+# when it succeeded. A Job's pod template cannot be changed, so each release gets its own Job,
+# and old ones remove themselves a day after they finish. See references/kubernetes.md,
+# "Database migrations".
+#
+# Placeholders, with the sample values the template is checked with:
+#   <APP>          the app's name, also the namespace (sample: shop)
+#   <IMAGE>        the image's registry path without a tag, as the Deployment names it; the
+#                  pipeline sets the release's tag (sample: ghcr.io/example/shop)
+#   <MIGRATE_CMD>  the app's migration command as a JSON list
+#                  (sample: ["npm", "run", "migrate"])
+#   <RUN_AS_UID>   the image's numeric non-root user, as in deployment.yaml (sample: 100)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: <APP>-migrate
+  labels:
+    app.kubernetes.io/name: <APP>
+spec:
+  backoffLimit: 0                # a failed migration is looked at by a person, not retried
+  # The Job fails on its own after this, even when its pod is never created (a quota, an
+  # admission rule); the pipeline's wait follows it and then prints the events.
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: <APP>-migrate
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: <RUN_AS_UID>
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: <IMAGE>
+          command: <MIGRATE_CMD>
+          envFrom:
+            - secretRef:
+                name: <APP>-secrets
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {memory: 256Mi}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp  # writable scratch space, since the root filesystem is read-only
+          emptyDir:
+            sizeLimit: 256Mi

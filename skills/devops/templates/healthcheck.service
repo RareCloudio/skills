@@ -1,0 +1,40 @@
+# healthcheck.service: runs healthcheck.sh once; healthcheck.timer starts it every five minutes.
+#
+# Placeholders, with the sample values the template was checked with:
+#   <CHECK_URL>         the address a visitor uses (sample: https://example.com/)
+#   <DISK_PATHS>        mount points to watch, separated by spaces (sample: / /var)
+#   <DISK_MAX_PERCENT>  space or inode use that counts as a problem (sample: 85)
+#   <CERT_MIN_DAYS>     fewer days left on the certificate is a problem (sample: 14)
+#
+# Install: healthcheck.sh as /usr/local/bin/healthcheck.sh (mode 0755), this file and
+# healthcheck.timer in /etc/systemd/system/, then
+#   systemd-analyze verify /etc/systemd/system/healthcheck.service
+#   systemctl daemon-reload && systemctl enable --now healthcheck.timer
+#   systemctl start healthcheck.service; journalctl -u healthcheck -n 5
+#
+# ALERT_URL usually carries a secret (a topic name or a webhook token), so it lives in
+# /etc/healthcheck.env (root:root, mode 0600) as a line ALERT_URL=https://... and not here.
+# systemd reads that file as root before it drops to the unprivileged user.
+
+[Unit]
+Description=Health check of <CHECK_URL>, disk and certificate
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/healthcheck.sh
+Environment=CHECK_URL=<CHECK_URL>
+Environment="DISK_PATHS=<DISK_PATHS>"
+Environment=DISK_MAX_PERCENT=<DISK_MAX_PERCENT>
+Environment=CERT_MIN_DAYS=<CERT_MIN_DAYS>
+EnvironmentFile=-/etc/healthcheck.env
+# Remembers the last set of problems, so an alert is sent once per change.
+StateDirectory=healthcheck
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+# read-only, not yes: "yes" hides /home and df would report the wrong filesystem for it.
+ProtectHome=read-only
+PrivateTmp=yes
+TimeoutStartSec=3min

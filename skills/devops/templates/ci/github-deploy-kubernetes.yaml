@@ -1,0 +1,206 @@
+# Build the image once, tag it with the commit, push it, and apply the app's manifests from git
+# with that exact tag. `rollout status` is the gate; `rollout undo` puts the previous version back
+# when the rollout or the outside check fails. Copy to .github/workflows/deploy.yaml.
+#
+# Git is the source of truth: the deploy job checks out the commit it deploys, writes that commit's
+# tag into the kustomization (`kustomize edit set image`) and applies the folder, so what runs is
+# that commit's manifests with that commit's image. A `kubectl set image` or `kubectl edit` made
+# by hand is undone by the next deploy; write a hand-made fix back to the files.
+#
+# Placeholders, with the sample values the template is checked with:
+#   <IMAGE>          registry path of the image, lowercase, as the Deployment names it
+#                                                               sample: ghcr.io/example/shop
+#   <KUSTOMIZE_DIR>  folder of the app's kustomization.yaml     sample: deploy/kubernetes
+#   <NAMESPACE>      namespace of the app                       sample: shop
+#   <DEPLOYMENT>     name of the Deployment, the app's name     sample: shop
+#   <CONTAINER>      name of the container inside it; app in templates/kubernetes/deployment.yaml
+#                                                               sample: app
+#   <MIGRATION_JOB>  the filled templates/kubernetes/migrate-job.yaml in the repository, run and
+#                    waited for before the apply; empty when the app has no migrations
+#                                                               sample: deploy/kubernetes/migrate-job.yaml
+#   <PUBLIC_URL>     address people use, for the outside check  sample: https://app.example.com
+#   <HEALTH_PATH>    path that answers 200 when the app is well sample: /health
+#
+# Settings in the repository (Settings, Environments, "production"):
+#   secret KUBECONFIG  a kubeconfig for a service account that may write the kinds the
+#                      kustomization holds in this namespace, and nothing else. Deploy rights
+#                      reach every Secret in the namespace (a Pod can mount them), so keep the
+#                      namespace to this one app
+#                      (see references/ci-cd.md for the Role, the migration Job's rules included)
+# Add required reviewers to the environment when a person should approve each deploy.
+#
+# Run by hand ("Run workflow") with a tag to put an earlier build back without building. The job
+# checks out that commit, so its manifests come back together with its image.
+
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag to deploy (a commit SHA built earlier). Empty builds this commit."
+        required: false
+        default: ""
+
+permissions: {}
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and push the image
+    if: ${{ github.event_name == 'push' || inputs.tag == '' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read # check out the code
+      packages: write # push the image to ghcr.io
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          push: true
+          tags: <IMAGE>:${{ github.sha }}
+
+  deploy:
+    name: Deploy to production
+    needs: build
+    if: ${{ !cancelled() && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read # check out the manifests
+    environment:
+      name: production
+      url: <PUBLIC_URL>
+    env:
+      TAG: ${{ inputs.tag || github.sha }}
+      MIGRATION_JOB: "<MIGRATION_JOB>"
+      KUBECTL_VERSION: v1.37.2
+      # sha256 of the linux/amd64 kubectl for that version, from dl.k8s.io/release/<v>/bin/...
+      KUBECTL_SHA256: c04487523e7aa7d1493f7808174c899db93d7a9cf57531420cd76b9bd415f8f4
+      KUSTOMIZE_VERSION: v5.8.3
+      # sha256 of kustomize_<v>_linux_amd64.tar.gz, from checksums.txt in that kustomize release
+      KUSTOMIZE_SHA256: cb9e31198d3f63b44848bd0afc4c8efc56e6cfef9c93a4a39a211940e6decd61
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+
+      - name: Install a pinned kubectl and kustomize
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl -fsSLo kubectl "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          echo "${KUBECTL_SHA256}  kubectl" | sha256sum --check
+          chmod 0755 kubectl
+          url="https://github.com/kubernetes-sigs/kustomize/releases/download"
+          file="kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          curl -fsSLo kustomize.tar.gz "${url}/kustomize%2F${KUSTOMIZE_VERSION}/${file}"
+          echo "${KUSTOMIZE_SHA256}  kustomize.tar.gz" | sha256sum --check
+          tar -xzf kustomize.tar.gz kustomize
+          echo "${RUNNER_TEMP}" >> "$GITHUB_PATH"
+
+      - name: Load the cluster credential
+        env:
+          KUBECONFIG_CONTENT: ${{ secrets.KUBECONFIG }}
+        run: |
+          test -n "$KUBECONFIG_CONTENT" || { echo "KUBECONFIG is not set"; exit 1; }
+          install -m 600 /dev/null "${RUNNER_TEMP}/kubeconfig"
+          printf '%s\n' "$KUBECONFIG_CONTENT" > "${RUNNER_TEMP}/kubeconfig"
+          echo "KUBECONFIG=${RUNNER_TEMP}/kubeconfig" >> "$GITHUB_ENV"
+
+      # Roll back only to the revision this run started from, and only when the run made a new one.
+      - name: Note the live revision
+        id: before
+        run: |
+          revision="$(kubectl -n <NAMESPACE> get deployment/<DEPLOYMENT> --ignore-not-found \
+            -o jsonpath='{.metadata.annotations.deployment\.kubernetes\.io/revision}')"
+          echo "revision=${revision}" >> "$GITHUB_OUTPUT"
+
+      # The release's migrations, as a Job from its image, before its pods take traffic. A Job that
+      # fails, or never gets a pod (a quota, an admission rule) and reaches its deadline, stops the
+      # deploy here with its log and its events; the app has not been changed yet.
+      - name: Run the database migrations
+        if: ${{ env.MIGRATION_JOB != '' }}
+        run: |
+          release="$(printf '%s' "${TAG}" | cut -c1-12 | tr '[:upper:]' '[:lower:]')"
+          dir="${RUNNER_TEMP}/migrate"
+          mkdir -p "${dir}"
+          cp "${MIGRATION_JOB}" "${dir}/job.yaml"
+          (cd "${dir}" && kustomize create --resources job.yaml --namespace <NAMESPACE> &&
+            kustomize edit set namesuffix -- "-${release}" && kustomize edit set image "<IMAGE>:${TAG}")
+          job="$(kubectl apply -k "${dir}" -o name)"
+          limit="$(kubectl -n <NAMESPACE> get "${job}" -o jsonpath='{.spec.activeDeadlineSeconds}')"
+          deadline=$((SECONDS + ${limit:-600} + 60))
+          while :; do
+            complete="$(kubectl -n <NAMESPACE> get "${job}" \
+              -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}')"
+            failed="$(kubectl -n <NAMESPACE> get "${job}" \
+              -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}')"
+            if [ "${complete}" = True ] || [ "${failed}" = True ] || [ "${SECONDS}" -ge "${deadline}" ]; then
+              break
+            fi
+            sleep 5
+          done
+          kubectl -n <NAMESPACE> logs "${job}" --all-containers --tail=200 || true
+          if [ "${complete}" != True ]; then
+            echo "The migration Job ${job} did not complete, so nothing was deployed. Its events:"
+            kubectl -n <NAMESPACE> describe "${job}" | sed -n '/^Events:/,$p'
+            kubectl -n <NAMESPACE> describe pods -l "job-name=${job#*/}" | sed -n '/^Events:/,$p'
+            exit 1
+          fi
+
+      - name: Apply the manifests with the new tag
+        id: apply
+        working-directory: <KUSTOMIZE_DIR>
+        run: |
+          kustomize edit set image "<IMAGE>:${TAG}"
+          kubectl apply -k .
+          kubectl -n <NAMESPACE> annotate deployment/<DEPLOYMENT> --overwrite \
+            "kubernetes.io/change-cause=deploy ${TAG}"
+
+      - name: Wait for the rollout
+        run: kubectl -n <NAMESPACE> rollout status deployment/<DEPLOYMENT> --timeout=5m
+
+      - name: Check from outside
+        run: |
+          curl --fail --silent --show-error --max-time 10 \
+            --retry 10 --retry-delay 3 --retry-all-errors \
+            "<PUBLIC_URL><HEALTH_PATH>"
+
+      - name: Roll back
+        if: ${{ failure() && steps.apply.outcome != 'skipped' }}
+        env:
+          BEFORE: ${{ steps.before.outputs.revision }}
+        run: |
+          now="$(kubectl -n <NAMESPACE> get deployment/<DEPLOYMENT> \
+            -o jsonpath='{.metadata.annotations.deployment\.kubernetes\.io/revision}')"
+          if [ -z "$BEFORE" ] || [ "$now" = "$BEFORE" ]; then
+            echo "This run made no new revision of the Deployment; nothing to roll back."
+            exit 0
+          fi
+          kubectl -n <NAMESPACE> rollout undo deployment/<DEPLOYMENT> --to-revision="$BEFORE"
+          kubectl -n <NAMESPACE> rollout status deployment/<DEPLOYMENT> --timeout=5m
+
+      - name: Say which version is live
+        if: ${{ always() }}
+        run: |
+          live="$(kubectl -n <NAMESPACE> get deployment/<DEPLOYMENT> \
+            -o jsonpath='{.spec.template.spec.containers[?(@.name=="<CONTAINER>")].image}' \
+            || echo unknown)"
+          echo "Live version: ${live}" | tee -a "$GITHUB_STEP_SUMMARY"

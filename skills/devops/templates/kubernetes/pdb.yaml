@@ -1,0 +1,18 @@
+# Keeps a voluntary disruption (a node drain for an upgrade, the cluster autoscaler removing a
+# node) from taking down more than one replica at a time. It does nothing for a node that dies.
+# See references/kubernetes.md.
+#
+# Placeholders, with the sample values the template is checked with:
+#   <APP>  the app's name (sample: shop)
+#
+# maxUnavailable: 1 works at any replica count. minAvailable equal to the replica count would
+# block every drain, and a node upgrade would wait on it for good.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: <APP>
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: <APP>

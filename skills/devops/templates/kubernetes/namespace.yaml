@@ -1,0 +1,18 @@
+# One namespace per app, with Pod Security admission set to "restricted", so the cluster itself
+# refuses a pod that would run as root, keep Linux capabilities or escalate privileges.
+# See references/kubernetes.md.
+#
+# Placeholders, with the sample values the template is checked with:
+#   <APP>  the app's name, also used as the namespace name; lowercase letters, digits and
+#          hyphens (sample: shop)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: <APP>
+  labels:
+    app.kubernetes.io/part-of: <APP>
+    # enforce refuses pods that break the profile; warn and audit report them without refusing.
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

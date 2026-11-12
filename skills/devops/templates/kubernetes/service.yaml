@@ -1,0 +1,20 @@
+# A stable in-cluster address for the app's ready pods. The selector has to match the pod labels
+# in deployment.yaml exactly, or the Service has no endpoints and the gateway answers 503.
+# See references/kubernetes.md.
+#
+# Placeholders, with the sample values the template is checked with:
+#   <APP>  the app's name (sample: shop)
+apiVersion: v1
+kind: Service
+metadata:
+  name: <APP>
+  labels:
+    app.kubernetes.io/name: <APP>
+spec:
+  type: ClusterIP  # traffic comes in through the gateway, not straight to the Service
+  selector:
+    app.kubernetes.io/name: <APP>
+  ports:
+    - name: http
+      port: 80
+      targetPort: http  # the container port named "http", whatever its number

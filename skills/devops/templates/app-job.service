@@ -1,0 +1,43 @@
+# A scheduled job of the app (cleanup, report, sync), started by app-job.timer.
+# Install as /etc/systemd/system/<APP_NAME>-<JOB_NAME>.service next to the timer of the same
+# name. Enable the timer, not this unit. Run it once by hand with
+#   systemctl start <APP_NAME>-<JOB_NAME>.service && journalctl -u <APP_NAME>-<JOB_NAME> -n 50
+#
+# Placeholders (sample values in brackets, used when this file is checked):
+#   <APP_NAME>   the app's service name; reuses its user, env file and folders [shop]
+#   <APP_USER>   the app's system user [shop]
+#   <JOB_NAME>   short name of the job [cleanup]
+#   <JOB_CMD>    absolute path of the program, then its arguments
+#                [/usr/bin/node /srv/shop/current/dist/cleanup.js]
+
+[Unit]
+Description=<APP_NAME> <JOB_NAME> job
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+# oneshot: the unit is "activating" while the job runs and "inactive" when it ends; the timer
+# does not start a second copy while one is still running.
+Type=oneshot
+User=<APP_USER>
+Group=<APP_USER>
+WorkingDirectory=/srv/<APP_NAME>/current
+EnvironmentFile=/etc/<APP_NAME>/env
+ExecStart=<JOB_CMD>
+# A job that hangs would otherwise block every later run.
+TimeoutStartSec=30min
+StateDirectory=<APP_NAME>
+UMask=0027
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+CapabilityBoundingSet=

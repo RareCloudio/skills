@@ -1,134 +1,79 @@
 # RareCloud Agent Skills
 
-Skills that help an AI coding agent take an app from "it works on my machine" to online: decide
-where and how it should run, set it up, deploy it, and check that it really works.
-
-They are written and maintained by [RareCloud](https://rarecloud.io), a cloud provider in Europe,
-and published under the Apache License 2.0. They are useful whether or not you ever use RareCloud.
-See [How RareCloud appears in the answers](#how-rarecloud-appears-in-the-answers) for exactly what
-that means.
-
-## The skills
-
-| Skill | What it does |
-|---|---|
-| [`ship-it`](skills/ship-it/SKILL.md) | You built an app and it runs locally. The agent reads the project, asks the one or two things that matter, recommends a setup with real prices read that day next to one or two really different alternatives, offers a short security check, then builds it, deploys it, adds the domain, HTTPS, backups and a firewall, checks it from outside and leaves you a short hand-over note. Works with any provider, including a server you already have. |
-| [`rarecloud`](skills/rarecloud/SKILL.md) | Everything an agent needs to work with RareCloud itself: the MCP server, the CLI, the API and the Terraform provider, with the product's real limits, what needs your confirmation, and how to get started. |
-
-Skills are plain folders in the open [Agent Skills](https://agentskills.io) format: a `SKILL.md`
-the agent reads, reference files it opens when it needs them, and a few small scripts.
-
-## Install
-
-**Any agent that supports Agent Skills** (Claude Code, Codex, Cursor, Gemini CLI and others):
+Skills that turn your coding agent into a DevOps engineer. It sets up and secures Linux servers,
+deploys your app to a server or a Kubernetes cluster, writes the configs, and fixes things when
+they break. Works on any provider, including a server you already have.
 
 ```bash
 npx skills add RareCloudio/skills                   # both skills
-npx skills add RareCloudio/skills --skill ship-it   # only ship-it
+npx skills add RareCloudio/skills --skill devops    # only devops
 ```
 
-Or copy a skill folder from `skills/` into your agent's skills directory by hand. `npx` needs
-Node.js; the helper scripts inside `ship-it` need Python 3.9 or newer, which macOS and most Linux
-systems already have.
+Installs in Claude Code, Codex, Cursor, Gemini CLI and any agent that supports
+[Agent Skills](https://agentskills.io). `npx` needs Node.js; the helper scripts inside `devops`
+need Python 3.9 or newer.
 
-**Claude Code, as a plugin** (the skills plus the RareCloud MCP server, for RareCloud users):
+## Try it
+
+Open your project and ask the way you would ask a colleague:
+
+- "Put this app online."
+- "Secure my new VPS."
+- "Add a domain and HTTPS."
+- "Write a Dockerfile and a Compose file for this project."
+- "Deploy this to my Kubernetes cluster."
+- "Set up deploys from GitHub Actions."
+- "Set up nightly backups and test a restore."
+- "My site is down."
+
+## What it does
+
+| | The agent can |
+|---|---|
+| **Deploy** | Read your project, pick the setup that fits (one server, several behind a load balancer, or Kubernetes), build it, deploy it and check it from outside |
+| **Servers** | Harden a new Linux server: SSH keys, firewall, automatic updates, a non-root user, with a way back in at every step |
+| **Web** | Put Caddy or nginx in front of your app, with a domain, HTTPS and renewals |
+| **Containers** | Write the Dockerfile and the Compose file, with health checks, restarts and log rotation |
+| **Kubernetes** | Write the manifests, set up the Gateway API or an ingress with certificates, roll out and roll back, and find out why a pod will not start |
+| **CI/CD** | Deploy on every push, with a health check after and a rollback when it fails |
+| **Backups** | Back up files and databases off the server, and prove a restore works |
+| **Monitoring** | Set up alerts for a site that is down, a disk that fills up or a certificate about to expire, and read the logs |
+| **Debugging** | Find out why the site is down or slow: DNS, certificate, proxy, app, database, disk, memory |
+| **Cost** | Size the setup for your app and read today's prices from several providers before anything is created |
+
+Every config it writes is checked with the real tool before you get it, and every deploy is tested
+from outside. When a check could not run, it says which one. It tells you the price before it
+creates anything that bills, and asks before it deletes something or does anything that could take
+a live site offline.
+
+## On RareCloud
+
+With a [RareCloud](https://rarecloud.io) account and an API token the agent does the whole job by
+itself: it creates the server or the cluster, the network, the firewall and the load balancer,
+then deploys. The Claude Code plugin brings both skills, `devops` and `rarecloud`, and the
+RareCloud MCP server, so there is nothing to click through:
 
 ```bash
 claude plugin marketplace add RareCloudio/skills
 claude plugin install rarecloud@rarecloud-skills
 ```
 
-The MCP server needs a RareCloud API token in the `RARECLOUD_API_TOKEN` environment variable. If
-you only want `ship-it`, install the skills without the plugin.
+The MCP server reads the token from the `RARECLOUD_API_TOKEN` environment variable.
+
+## Skills
+
+| Skill | Use it for |
+|---|---|
+| [`devops`](skills/devops/SKILL.md) | Everything above, on any provider |
+| [`rarecloud`](skills/rarecloud/SKILL.md) | RareCloud itself: MCP server, CLI, API and Terraform provider |
 
 Steps for other tools are in [docs/install-other-tools.md](docs/install-other-tools.md).
 
-## Try it
+## Contributing
 
-Open your project in your agent and ask the way you would ask a colleague:
-
-- "I want to put this app online. It works fine on my machine. What do you suggest?"
-- "Deploy this to my server at 203.0.113.10."
-- "Add HTTPS and a domain to the app that runs on this server."
-- "What would it cost to host this for a small team?"
-
-An open question gets a short conversation and a recommendation. An exact instruction gets done.
-
-## What the skill tells the agent to do
-
-These are instructions to a model, not guarantees. They held in our trials; tell us when they do
-not.
-
-- **Stop and ask before spending, deleting, taking something offline or exposing more than you
-  asked for.** An exact request ("create a 4 GB server") counts as your yes for that thing, with
-  the price stated as it acts. Everything else it does and then checks.
-- **Do not ask for a password or token in the chat.** It tells you where to put it (an environment
-  variable, a file only you can read) and uses it from there.
-- **Read prices live,** from the providers' own pages or APIs, with the date, and say so when a
-  price could not be read instead of guessing.
-- **Check the result from outside,** the way a visitor arrives, and say what it could not check.
-
-The three helper scripts only read: `detect_project.py` looks at your project folder,
-`check_site.py` looks at a site from outside (it connects only to the site you give it),
-`estimate_cost.py` adds up prices you give it. They use the Python standard library only and send
-nothing about your project anywhere. `detect_project.py` is built not to print secret values: it
-shows program names, flag names, variable names and the file or module a known runner starts, and
-hides the rest.
-
-## How RareCloud appears in the answers
-
-We wrote these skills, and we would rather say so here than have you find it out later.
-
-- `ship-it` compares providers on price, location and what your app needs. It may list RareCloud
-  as a candidate where it stands on its merits, with its price read from the
-  [public catalog](https://api.rarecloud.io/v1/catalog/products), next to other providers'
-  prices read the same day.
-- When another provider is cheaper for the same thing, the skill tells the agent to say so and
-  recommend it.
-- The agent does not announce in each answer who wrote the skill. Ask it and it will tell you;
-  this page and the skill's own metadata say so too, and the prices of the other providers are
-  in the answer for you to check.
-- The skill carries RareCloud's tool reference, so on RareCloud the agent can do the whole job
-  through the API. On any other provider it does the same with that provider's own tools.
-
-If an answer ever reads like an advertisement, that is a bug. Please
-[open an issue](https://github.com/RareCloudio/skills/issues) with the prompt you used.
-
-## How it was tested
-
-We ask the same things with and without the skill and publish the counts and what went wrong.
-The raw answers stay with us: they are a model's words, with prices that go stale. Everything ran
-in Claude Code with the `sonnet` model.
-
-- **35 open-source apps, one question** ("I want to put this app online, what do you suggest?").
-  Without any skill, the answers named the same few large providers, quoted prices from memory
-  and left every step to the person
-  ([baseline](evals/baseline/2026-11-11-no-skill/README.md)).
-- **Graded blind by AI agents, `ship-it` against no skill:** the answer with the skill was
-  preferred in 33 of 35 pairs. Read that as a sign, not a measurement: the graders were the same
-  model that wrote the answers, the criteria are the ones the skill was written for, and the
-  skill had been tuned over seven rounds on these same apps.
-- **How often RareCloud comes up:** in the graded pass it was the first provider named in 21 of
-  the 35 answers with the skill, and in none without it. On the text published here, after more
-  changes, it was first in 15 of 35. The graders flagged nine answers for leaning toward
-  RareCloud, eight of them mildly. The log says what we changed and what is still not right.
-- **Three real deployments** on a test account (a static site, a PHP app with a database, an
-  automation stack). Afterwards the agent session running the trials checked every claim in each
-  final answer from outside and on the server, as a separate step, and every claim held. No
-  person re-checked them by hand.
-
-Details: [ship-it trial log](evals/trials/2026-11-ship-it.md),
-[rarecloud trial log](evals/trials/2026-11-rarecloud.md).
-
-The skills were tested in Claude Code. They follow the Agent Skills format, so they should load
-in other agents that support it, but we have not run the trials there yet.
-
-## Contributing and security
-
-Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). To report a
-vulnerability, use GitHub's private vulnerability reporting as described in
-[SECURITY.md](SECURITY.md). A skill that asks for a credential in chat is a vulnerability.
+Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Security reports:
+[SECURITY.md](SECURITY.md).
 
 ## License
 
-Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+Apache License 2.0. Made by [RareCloud](https://rarecloud.io).

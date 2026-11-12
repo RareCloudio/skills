@@ -1,0 +1,78 @@
+# Traffic in from outside through the Gateway API: a Gateway that listens on 80 and 443, with a
+# certificate cert-manager obtains for <HOST>, and HTTPRoutes that send port 80 to HTTPS and
+# HTTPS to the app's Service. The cluster needs a Gateway API implementation installed, which
+# provides the GatewayClass. For a cluster that only has an ingress controller, use ingress.yaml
+# instead of this file. See references/kubernetes.md.
+#
+# Placeholders, with the sample values the template is checked with:
+#   <APP>            the app's name (sample: shop)
+#   <HOST>           the name visitors type; its DNS record points at the Gateway's address
+#                    (sample: app.example.com)
+#   <GATEWAY_CLASS>  from "kubectl get gatewayclass" on this cluster (sample: eg)
+#
+# cert-manager reads the annotation below and creates a Certificate for every HTTPS listener
+# with a hostname, stored in the Secret named under certificateRefs. Its Gateway API support is
+# off until it is installed with config.gatewayAPI.enabled=true.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: <APP>
+  annotations:
+    cert-manager.io/issuer: letsencrypt
+spec:
+  gatewayClassName: <GATEWAY_CLASS>
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      hostname: <HOST>
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: <HOST>
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: <APP>-tls
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+# Plain HTTP gets a permanent redirect to HTTPS. The certificate authority's HTTP-01 check still
+# gets through: cert-manager adds its own route for /.well-known/acme-challenge/<token>, and the
+# longer, exact path wins over this one.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: <APP>-redirect
+spec:
+  parentRefs:
+    - name: <APP>
+      sectionName: http
+  hostnames:
+    - <HOST>
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: <APP>
+spec:
+  parentRefs:
+    - name: <APP>
+      sectionName: https
+  hostnames:
+    - <HOST>
+  rules:
+    - backendRefs:
+        - name: <APP>
+          port: 80

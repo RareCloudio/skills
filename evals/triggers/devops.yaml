@@ -1,0 +1,49 @@
+# Trigger evals for the devops skill.
+# should_trigger: requests that should load the skill, written the way people type them. They
+#   cover the whole craft: a first deploy, securing a server, the firewall, a domain and HTTPS,
+#   Dockerfile and Compose, Kubernetes deploys and debugging, CI deploys, backups, monitoring,
+#   a site that is down and a site that is slow. None names RareCloud: the skill must load for
+#   anyone, on any provider.
+# should_not_trigger: near misses that are not about running an app on a server or a cluster:
+#   application code, frontend styling, a local development error, a code review, a question
+#   about another vendor's billing, and a question about an existing RareCloud server, which
+#   belongs to the rarecloud skill.
+skill: devops
+
+should_trigger:
+  - "ok the app works locally, now what? how do I put it online"
+  - "deploy this"
+  - "where should I host my django app? it has celery workers and postgres"
+  - "I built a booking app for my salon with an AI tool, how do I get it online?"
+  - "get me a URL for this so my cofounder can try it"
+  - "what server do I need for this nextjs + supabase thing, expecting maybe 500 users"
+  - "put my app online on my server at 203.0.113.9, ssh key is ~/.ssh/deploy_ed25519"
+  - "cheapest way to host my discord bot so it stays up 24/7?"
+  - "we want to self-host n8n for our support chat, where should we run it"
+  - "add HTTPS to my site, it's on a VPS already"
+  - "just got a fresh ubuntu 24.04 vps, can you lock it down before I put anything on it"
+  - "harden my ubuntu server, disable password login and set up fail2ban"
+  - "I only want 80 and 443 open on my server. set up the firewall but don't lock me out"
+  - "point shop.example.com at my server and get a lets encrypt cert working"
+  - "write a Dockerfile for this flask app, I'll handle the rest"
+  - "write a dockerfile and a docker compose file for this node app with postgres"
+  - "deploy this to our kubernetes cluster, we already have one running"
+  - "my pod keeps going into CrashLoopBackOff after the last deploy, can you figure out why"
+  - "set up github actions so every push to main deploys to my server"
+  - "set up nightly backups of my postgres database and make sure I can actually restore them"
+  - "set up some monitoring so I get a message when my site goes down or the disk fills up"
+  - "my site is down!! it was fine this morning"
+  - "getting 502 bad gateway from nginx after I restarted the app"
+  - "why is my site so slow? pages take 6 seconds to load"
+
+should_not_trigger:
+  - "my github actions build fails on npm ci, can you fix it"
+  - "my rarecloud vm is at 90% disk, how do I resize it from the cli"
+  - "review this PR for security issues"
+  - "the app crashes on startup with ECONNREFUSED to localhost:5432 on my laptop"
+  - "center the logo in my navbar, the tailwind classes aren't doing anything"
+  - "add a dark mode toggle to the settings page of my react app"
+  - "write a SQL query that returns the top 10 customers by revenue this year"
+  - "refactor this express route handler to use async/await"
+  - "how do I change the credit card on my DigitalOcean account"
+  - "why was I charged twice on my AWS invoice this month"

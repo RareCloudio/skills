@@ -1,0 +1,115 @@
+# Production Compose file for one server: the app, Postgres, and Caddy in front for HTTPS.
+# Copy to the app folder, /srv/<PROJECT_NAME>/compose.yaml. The folder, its files, their owners
+# and modes, and the names the deploy script and the backup job rely on are in
+# references/first-deploy.md.
+#
+# Caddy reads /srv/<PROJECT_NAME>/caddy/Caddyfile: templates/Caddyfile with <DOMAIN> written as
+# {$SITE_ADDRESS} and <UPSTREAM> as app:<APP_PORT>. After editing it, apply it with no dropped
+# connections, as the folder's owner and from any folder, like every Compose command here:
+#   sudo -u deploy docker compose --project-directory /srv/<PROJECT_NAME> exec caddy \
+#     caddy validate --config /etc/caddy/Caddyfile
+#   sudo -u deploy docker compose --project-directory /srv/<PROJECT_NAME> exec caddy \
+#     caddy reload --config /etc/caddy/Caddyfile
+# A config that fails to load leaves the old one running only until Caddy next starts (a reboot,
+# an `up -d`), which then fails on the same file: when either command fails, fix the file or put
+# the old one back. A changed SITE_ADDRESS in .env is an environment change: `up -d` recreates
+# Caddy.
+#
+# Placeholders (sample values in brackets, used when this file is checked):
+#   <PROJECT_NAME>  Compose project name and app name; volume, network and container names
+#                   start with it [shop]
+#   <APP_IMAGE>     the app's image without its tag; the tag comes from APP_TAG in .env
+#                   [registry.example.com/shop/web]
+#   <APP_PORT>      port the app listens on inside its container [3000]
+#
+# Values Compose reads from `.env` beside this file (owned by the deploy user, mode 0600, never
+# in git), with the sample values used when this file is checked:
+#   APP_TAG            the app's image tag, the commit it was built from; the deploy script
+#                      changes only this line [1.4.2]
+#   SITE_ADDRESS       the name Caddy serves and gets a certificate for [app.example.com]
+#   POSTGRES_PASSWORD  made on the server with `openssl rand -hex 32`; hex, so it is safe
+#                      inside DATABASE_URL [0123abcd]
+#
+# The app's health check comes from its image (HEALTHCHECK in the Dockerfile). If the image
+# has none, add a `healthcheck:` to the app service, or Caddy's `service_healthy` wait fails.
+
+name: <PROJECT_NAME>
+
+x-logging: &logging
+  # The json-file driver keeps every line forever unless it is told otherwise.
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  app:
+    image: <APP_IMAGE>:${APP_TAG:?set APP_TAG in .env}
+    restart: unless-stopped
+    init: true
+    environment:
+      DATABASE_URL: postgres://app:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/app
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
+    # No ports: Caddy reaches the app over the project network. If the proxy runs on the host
+    # instead, publish on loopback only, for example "127.0.0.1:<APP_PORT>:<APP_PORT>".
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    logging: *logging
+
+  db:
+    # The major line, which the publisher rebuilds with fixes; a new major needs a migration,
+    # not a new tag. The tag rule is in references/first-deploy.md.
+    image: postgres:18-trixie
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_DB: app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      # From Postgres 18 the image keeps its data under /var/lib/postgresql/<major>/docker,
+      # so the volume goes on /var/lib/postgresql (17 and older: /var/lib/postgresql/data).
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    logging: *logging
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?set SITE_ADDRESS in .env}
+    volumes:
+      # The folder, not the file: an editor or `sed -i` writes a new file and renames it over the
+      # old one, and a single-file mount keeps showing the old one until Caddy is recreated.
+      - ./caddy:/etc/caddy:ro
+      # Certificates and the ACME account live here; losing them means issuing again, and
+      # the certificate authority rate-limits repeated issuance for the same name.
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    logging: *logging
+
+volumes:
+  db-data:
+  caddy-data:
+  caddy-config:

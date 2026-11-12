@@ -1,0 +1,33 @@
+# restic-backup.service: one backup run of an app, started by restic-backup.timer.
+#
+# Install as /etc/systemd/system/restic-backup-<APP>.service, next to the timer of the same name.
+# Placeholder:
+#   <APP>  short name of the app; also names the environment file (sample: shop)
+#
+# Check: systemd-analyze verify restic-backup-<APP>.service restic-backup-<APP>.timer
+# Run once by hand and read the result:
+#   systemctl start restic-backup-<APP>.service; journalctl -u restic-backup-<APP>.service -n 50
+
+[Unit]
+Description=Back up <APP> with restic
+Wants=network-online.target
+After=network-online.target
+# To be told when a run fails, add a unit that sends a message and point at it here:
+# OnFailure=notify-failure@%n.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/restic-backup/<APP>.env
+# restic keeps a local cache of the repository's index; systemd creates this folder.
+Environment=RESTIC_CACHE_DIR=/var/cache/restic-backup
+CacheDirectory=restic-backup
+ExecStart=/usr/local/sbin/restic-backup
+# Stay out of the app's way while the backup runs.
+Nice=10
+IOSchedulingClass=idle
+# A first backup of a large folder can take hours; later runs only send what changed.
+TimeoutStartSec=6h
+PrivateTmp=true
+# No ProtectSystem=strict: SQLite cannot open a database in WAL mode on a read-only mount (it
+# writes the -shm file even to read), ReadWritePaths= on a missing folder stops the unit with
+# 226/NAMESPACE, and a job that may use the Docker socket has root's power anyway.

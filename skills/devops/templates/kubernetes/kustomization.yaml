@@ -1,0 +1,30 @@
+# Ties the app's manifests together, puts them all in the app's namespace and makes the
+# ConfigMap the Deployment reads. See references/kubernetes.md.
+#
+# Placeholders, with the sample values the template is checked with:
+#   <APP>  the app's name, also the namespace (sample: shop)
+#
+# Look before applying, and name the context you checked (<CONTEXT>) on every command:
+#   kubectl kustomize .
+#   kubectl --context <CONTEXT> diff -k .
+#   kubectl --context <CONTEXT> apply -k .
+#
+# The generated ConfigMap gets a hash of its content in its name, and kustomize rewrites the
+# Deployment to use the new name, so a changed setting rolls the pods instead of waiting for
+# the next restart.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: <APP>
+resources:
+  - namespace.yaml
+  - deployment.yaml
+  - service.yaml
+  - issuer.yaml
+  - gateway.yaml  # or ingress.yaml, on a cluster with an ingress controller
+  - hpa.yaml
+  - pdb.yaml
+  - networkpolicy.yaml
+configMapGenerator:
+  - name: <APP>-config
+    literals:
+      - LOG_LEVEL=info

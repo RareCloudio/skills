@@ -1,0 +1,36 @@
+# fail2ban jail for SSH that reads the systemd journal.
+#
+# Install as /etc/fail2ban/jail.d/sshd.local, before the package when you can (its first start
+# then reads it), then:
+#   sudo fail2ban-client -t                # configuration test, prints "OK" when it parses
+#   sudo systemctl enable fail2ban         # AlmaLinux ships it disabled
+#   sudo systemctl restart fail2ban        # loads this file; see below
+#   sleep 2                                # the socket takes a moment after a restart
+#   sudo fail2ban-client get sshd bantime  # 3600: the value in force, not the value in the file
+#   sudo fail2ban-client status sshd       # the jail exists and counts failures
+#
+# Why the restart: Debian and Ubuntu start fail2ban with their defaults when the package is
+# installed (bantime 600). A jail written after that is read only at the next start or reload,
+# and `systemctl enable --now` does nothing to a service that already runs.
+#
+# Why the journal: Debian 12 has no /var/log/auth.log unless rsyslog is installed, and with the
+# packaged defaults fail2ban then refuses to start ("Have not found any log file for sshd jail").
+# Ubuntu 24.04, Debian 13 and AlmaLinux 9 already use the journal; setting it here is harmless.
+# The journal backend needs python3-systemd on Debian and Ubuntu (a dependency on Ubuntu 24.04,
+# only a recommendation on Debian 12).
+#
+# The ban action is left to the distribution's default (iptables or nftables on Debian and
+# Ubuntu, firewalld rich rules on AlmaLinux with fail2ban-firewalld installed).
+#
+# No placeholders. Exempt the address you work from with fail2ban-exempt.sh while you set the
+# server up: your own checks that root and passwords are refused count as failed logins and would
+# ban it. An address the person wants never banned (an office's fixed one) goes at the end of the
+# ignoreip line.
+
+[sshd]
+enabled  = true
+backend  = systemd
+maxretry = 5
+findtime = 10m
+bantime  = 1h
+ignoreip = 127.0.0.1/8 ::1

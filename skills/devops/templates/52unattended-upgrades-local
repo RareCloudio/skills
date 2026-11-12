@@ -1,0 +1,28 @@
+// Automatic updates from the distribution's default origins (on Debian the security archive and
+// the stable point releases, on Ubuntu the security archive; references/updates.md lists them),
+// and the switch for a reboot at a quiet hour when a new kernel needs one, left off until the
+// owner says yes. This file is the one way this skill turns them on.
+// Debian and Ubuntu. Install as /etc/apt/apt.conf.d/52unattended-upgrades-local
+// (owner root, mode 0644; keep the name without an extension other than .conf, or apt ignores
+// the file). In apt's configuration the last value read wins, so this file, read after
+// 20auto-upgrades and 50unattended-upgrades, overrides them without editing either.
+//
+// Verify:
+//   apt-config dump | grep -E 'APT::Periodic::(Update-Package-Lists|Unattended-Upgrade)|Automatic-Reboot'
+//   sudo unattended-upgrade --dry-run --debug 2>&1 | grep -iE 'allowed origins|packages that will be upgraded'
+//   systemctl list-timers 'apt-daily*'
+//
+// Placeholders:
+//   <REBOOT_TIME>  local time of day for the reboot, 24-hour HH:MM, the quiet hour the owner
+//                  picked (sample: 04:00)
+
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+
+// The automatic reboot is the owner's decision. With "true", a kernel update that needs a
+// reboot gets one at <REBOOT_TIME>, which takes the server down for a minute or two. With
+// "false", the update is installed but the old kernel keeps running until someone reboots by
+// hand; /var/run/reboot-required says one is pending.
+Unattended-Upgrade::Automatic-Reboot "false";
+Unattended-Upgrade::Automatic-Reboot-Time "<REBOOT_TIME>";
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";

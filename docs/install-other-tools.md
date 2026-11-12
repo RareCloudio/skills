@@ -17,10 +17,10 @@ Run it in your terminal, not inside a Gemini CLI session. During the install the
 If you only want one skill, without the MCP server:
 
 ```bash
-gemini skills install https://github.com/RareCloudio/skills.git --path skills/ship-it
+gemini skills install https://github.com/RareCloudio/skills.git --path skills/devops
 ```
 
-You can also copy a skill folder (for example `skills/ship-it`) into `~/.gemini/skills/` or `~/.agents/skills/` for every project, or into `.gemini/skills/` or `.agents/skills/` for one project.
+You can also copy a skill folder (for example `skills/devops`) into `~/.gemini/skills/` or `~/.agents/skills/` for every project, or into `.gemini/skills/` or `.agents/skills/` for one project.
 
 Google's README says Gemini CLI is now meant for Gemini Code Assist Standard and Enterprise; free and Google AI Pro or Ultra users are pointed to the Antigravity CLI below.
 
@@ -68,7 +68,7 @@ Without Claude Code, copy the skill folders by hand. For every project, put them
 ```bash
 git clone https://github.com/RareCloudio/skills.git rarecloud-skills
 mkdir -p ~/.grok/skills
-cp -R rarecloud-skills/skills/rarecloud rarecloud-skills/skills/ship-it ~/.grok/skills/
+cp -R rarecloud-skills/skills/rarecloud rarecloud-skills/skills/devops ~/.grok/skills/
 ```
 
 To connect the MCP server, add this to `~/.grok/config.toml`. Grok expands `${RARECLOUD_API_TOKEN}` from your environment when it loads the file, so the token stays out of the config:

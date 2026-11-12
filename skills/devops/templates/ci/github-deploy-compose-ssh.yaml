@@ -1,0 +1,128 @@
+# Build the image once, tag it with the commit, push it, and switch one server to that exact tag
+# over SSH. The server side is templates/ci/deploy.sh, run as a forced command, so the key stored
+# here can deploy and do nothing else. Copy to .github/workflows/deploy.yaml.
+# On the server, the app folder, its .env (the tag and the app's secrets, of which a deploy
+# changes only the APP_TAG line) and the deploy user are laid out as references/first-deploy.md
+# says; do the first deploy there by hand before this workflow runs.
+#
+# Placeholders, with the sample values the template is checked with:
+#   <IMAGE>        registry path of the image, lowercase      sample: ghcr.io/example/shop
+#   <SSH_HOST>     server name or address                     sample: app.example.com
+#   <SSH_PORT>     SSH port on the server                     sample: 22
+#   <SSH_USER>     the deploy user                            sample: deploy
+#   <PUBLIC_URL>   address people use, for the outside check  sample: https://app.example.com
+#   <HEALTH_PATH>  path that answers 200 when the app is well sample: /health
+#
+# Settings in the repository (Settings, Environments, "production"):
+#   secret   DEPLOY_SSH_KEY      the private half of the deploy key
+#   variable DEPLOY_KNOWN_HOSTS  the server's host key line, checked against the server itself
+# Add required reviewers to the environment when a person should approve each deploy.
+#
+# Run by hand ("Run workflow") with a tag to put an earlier build back without building.
+
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag to deploy (a commit SHA built earlier). Empty builds this commit."
+        required: false
+        default: ""
+
+# Nothing by default; each job asks for what it needs.
+permissions: {}
+
+# One run at a time. A newer run waits; it does not cancel a deploy halfway.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and push the image
+    if: ${{ github.event_name == 'push' || inputs.tag == '' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read # check out the code
+      packages: write # push the image to ghcr.io
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          push: true
+          tags: <IMAGE>:${{ github.sha }}
+
+  deploy:
+    name: Deploy to production
+    needs: build
+    if: ${{ !cancelled() && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
+    runs-on: ubuntu-24.04
+    permissions: {}
+    environment:
+      name: production
+      url: <PUBLIC_URL>
+    env:
+      TAG: ${{ inputs.tag || github.sha }}
+    steps:
+      - name: Load the deploy key and the pinned host key
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          test -n "$DEPLOY_SSH_KEY" || { echo "DEPLOY_SSH_KEY is not set"; exit 1; }
+          test -n "$DEPLOY_KNOWN_HOSTS" || { echo "DEPLOY_KNOWN_HOSTS is not set"; exit 1; }
+          install -d -m 700 ~/.ssh
+          install -m 600 /dev/null ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<'EOF'
+          Host target
+            HostName <SSH_HOST>
+            Port <SSH_PORT>
+            User <SSH_USER>
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            BatchMode yes
+            ConnectTimeout 15
+          EOF
+
+      - name: Deploy
+        id: deploy
+        # The tag is expanded here on purpose; the server checks it before using it.
+        run: |
+          # shellcheck disable=SC2029
+          ssh target deploy "$TAG"
+
+      - name: Check from outside
+        run: |
+          curl --fail --silent --show-error --max-time 10 \
+            --retry 10 --retry-delay 3 --retry-all-errors \
+            "<PUBLIC_URL><HEALTH_PATH>"
+
+      # The server already rolls back when the container is unhealthy. This covers the case where
+      # it is healthy inside but broken from outside (proxy, firewall, DNS, a bad route).
+      - name: Roll back
+        if: ${{ failure() && steps.deploy.outcome == 'success' }}
+        run: ssh target rollback
+
+      - name: Say which version is live
+        if: ${{ always() }}
+        run: |
+          live="$(ssh target status || echo unknown)"
+          echo "Live version: ${live}" | tee -a "$GITHUB_STEP_SUMMARY"

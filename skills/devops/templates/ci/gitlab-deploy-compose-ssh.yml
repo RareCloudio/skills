@@ -1,0 +1,93 @@
+# GitLab CI version of github-deploy-compose-ssh.yaml: build the image once, tag it with the
+# commit, push it to the project's registry, and switch one server to that exact tag over SSH.
+# The server side is templates/ci/deploy.sh, run as a forced command. Copy to .gitlab-ci.yml.
+# On the server, the app folder, its .env (the tag and the app's secrets, of which a deploy
+# changes only the APP_TAG line) and the deploy user are laid out as references/first-deploy.md
+# says; do the first deploy there by hand before this pipeline runs.
+#
+# Placeholders, with the sample values the template is checked with:
+#   <SSH_HOST>     server name or address                     sample: app.example.com
+#   <SSH_PORT>     SSH port on the server                     sample: 22
+#   <SSH_USER>     the deploy user                            sample: deploy
+#   <PUBLIC_URL>   address people use, for the outside check  sample: https://app.example.com
+#   <HEALTH_PATH>  path that answers 200 when the app is well sample: /health
+#
+# CI/CD variables (Settings, CI/CD, Variables), both of type File, Protected, scoped to the
+# "production" environment:
+#   DEPLOY_SSH_KEY      the private half of the deploy key, pasted with the newline after its
+#                       last line: without it ssh stops with 'Load key ...: error in libcrypto'
+#                       (OpenSSH 9.2 and 10.2)
+#   DEPLOY_KNOWN_HOSTS  the server's host key line, checked against the server itself
+# Protect the default branch, since protected variables reach only protected branches and tags.
+#
+# To put an earlier build back, run a pipeline on the default branch with DEPLOY_TAG set to the
+# commit SHA of that build; the build job is skipped and that tag is deployed.
+
+stages: [build, deploy]
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+build:
+  stage: build
+  image: docker:29.9.3-cli
+  services:
+    - docker:29.9.3-dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  rules:
+    - if: $DEPLOY_TAG
+      when: never
+    - when: on_success
+  script:
+    - printf '%s' "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - docker build --pull -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA" .
+    - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+
+deploy:
+  stage: deploy
+  image: alpine:3.23
+  needs:
+    - job: build
+      optional: true
+  # One deploy at a time; a second pipeline waits for this job instead of overlapping it.
+  resource_group: production
+  environment:
+    name: production
+    url: <PUBLIC_URL>
+  # A person presses "Run" for each deploy. Remove this line once automatic deploys are wanted.
+  when: manual
+  script:
+    - apk add --no-cache openssh-client curl
+    - TAG="${DEPLOY_TAG:-$CI_COMMIT_SHA}"
+    - test -f "$DEPLOY_SSH_KEY" || { echo "DEPLOY_SSH_KEY is not set"; exit 1; }
+    - test -f "$DEPLOY_KNOWN_HOSTS" || { echo "DEPLOY_KNOWN_HOSTS is not set"; exit 1; }
+    - install -d -m 700 ~/.ssh
+    - install -m 600 "$DEPLOY_SSH_KEY" ~/.ssh/deploy_key
+    - install -m 644 "$DEPLOY_KNOWN_HOSTS" ~/.ssh/known_hosts
+    - |
+      cat > ~/.ssh/config <<'EOF'
+      Host target
+        HostName <SSH_HOST>
+        Port <SSH_PORT>
+        User <SSH_USER>
+        IdentityFile ~/.ssh/deploy_key
+        IdentitiesOnly yes
+        StrictHostKeyChecking yes
+        BatchMode yes
+        ConnectTimeout 15
+      EOF
+    # The server rolls back on its own when the container does not become healthy.
+    - ssh target deploy "$TAG"
+    # Healthy inside but broken from outside (proxy, firewall, DNS): roll back from here.
+    - |
+      if ! curl --fail --silent --show-error --max-time 10 \
+          --retry 10 --retry-delay 3 --retry-all-errors "<PUBLIC_URL><HEALTH_PATH>"; then
+        echo "The outside check failed; rolling back."
+        ssh target rollback
+        echo "Live version: $(ssh target status || echo unknown)"
+        exit 1
+      fi
+    # Quoted, because "word: " in a plain YAML list item turns the line into a mapping.
+    - 'echo "Live version: $(ssh target status || echo unknown)"'

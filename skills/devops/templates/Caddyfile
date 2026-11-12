@@ -1,0 +1,65 @@
+# Caddy in front of one app, with HTTPS that Caddy obtains and renews on its own.
+# See references/web-and-https.md for when to use it and what to check first.
+#
+# Placeholders, with the sample values the template is checked with:
+#   <ACME_EMAIL>  a real address the person reads, for the certificate authority's account
+#                 notices; the sample only passes the check (sample: ops@localhost)
+#   <DOMAIN>      the name visitors type; it must already resolve to this server on A and AAAA.
+#                 Under templates/compose.yaml write {$SITE_ADDRESS}, read from .env
+#                 (sample: app.example.com)
+#   <UPSTREAM>    where the app listens: on this host, or by service name on a Compose network
+#                 (app:3000 under templates/compose.yaml) (sample: 127.0.0.1:3000)
+#   <MAX_BODY>    the largest request body the app accepts, uploads included (sample: 25MB)
+#
+# Check before every reload:
+#   caddy fmt --diff /etc/caddy/Caddyfile
+#   caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+# then: systemctl reload caddy (a config that fails to load leaves the old one running). Under
+# Compose, the same two steps run inside the container; templates/compose.yaml shows them.
+{
+	email <ACME_EMAIL>
+
+	# While you test, uncomment this to get untrusted certificates from the staging CA, so a
+	# mistake does not use up the production rate limit. Comment it again once staging works.
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+<DOMAIN> {
+	encode zstd gzip
+
+	# Caddy sets no body limit of its own; this keeps one huge request from filling the disk
+	# or memory of the app. Match it to what the app itself accepts.
+	request_body {
+		max_size <MAX_BODY>
+	}
+
+	# Caddy passes the Host and sets X-Forwarded-For, X-Forwarded-Proto and X-Forwarded-Host,
+	# replacing whatever the client sent. WebSocket upgrades pass through with no extra setting.
+	reverse_proxy <UPSTREAM> {
+		# While the app restarts, hold a request for up to this long and keep trying to
+		# connect, instead of answering 502 at once.
+		lb_try_duration 10s
+	}
+
+	# HSTS tells browsers to refuse plain HTTP for this name for max-age seconds. Start small,
+	# raise it only once HTTPS has worked for a while; see the reference for the lock-in.
+	# header Strict-Transport-Security "max-age=300"
+
+	log
+}
+
+# Several apps on one server: one block per name, each with its own upstream. Caddy gets and
+# renews a certificate for every name. Copy the request_body block into each one.
+#
+# api.example.com {
+# 	reverse_proxy 127.0.0.1:4000
+# }
+#
+# www.example.com {
+# 	redir https://example.com{uri} permanent
+# }
+#
+# example.com {
+# 	root * /srv/site/public
+# 	file_server
+# }

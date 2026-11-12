@@ -35,7 +35,7 @@ MAX_PORTS = 64
 EXPIRY_WARNING_DAYS = 14
 REDIRECT_CODES = {301, 302, 303, 307, 308}
 DEFAULT_PORTS = {"http": 80, "https": 443}
-USER_AGENT = "ship-it-check-site/1"
+USER_AGENT = "devops-check-site/1"
 # OpenSSL's X509_V_FLAG_NO_CHECK_TIME: lets an expired certificate be decoded for its details.
 NO_CHECK_TIME = 0x200000
 # OpenSSL's X509_V_FLAG_PARTIAL_CHAIN; the ssl module names it only from Python 3.10.
