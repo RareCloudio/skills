@@ -269,8 +269,8 @@ curl -s -o /dev/null -w '%{http_code}\n' --max-time 3 --http1.1 -H 'Connection: 
 
 The last one prints `101` when WebSockets pass through, then exits 28 at `--max-time` (expected).
 An issuer starting `(STAGING)` means the staging switch is still on. To test a new server before
-DNS points at it, add `--resolve app.example.com:443:203.0.113.10` to curl. Then run
-`scripts/check_site.py` as [proving-it-works.md](proving-it-works.md) describes.
+DNS points at it, add `--resolve app.example.com:443:203.0.113.10` to curl. The rest of the
+look from outside, DNS and the closed ports, is in [proving-it-works.md](proving-it-works.md).
 
 ## Watch certificate expiry
 

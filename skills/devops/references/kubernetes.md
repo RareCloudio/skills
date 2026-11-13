@@ -62,7 +62,7 @@ LoadBalancer` Service (billed, so ask) in place of Gateway and Issuer. One pod w
 
 ```
 kubectl kustomize . > /tmp/<APP>.yaml                      # read what will be sent
-python3 scripts/check_config.py --allow-docker /tmp/<APP>.yaml   # kubeconform (downloads schemas)
+kubeconform -strict -summary /tmp/<APP>.yaml               # or its image, ghcr.io/yannh/kubeconform
 kubectl --context <CONTEXT> apply -f namespace.yaml
 kubectl --context <CONTEXT> -n <APP> create secret generic <APP>-secrets --from-env-file=<FILE>
 kubectl --context <CONTEXT> apply -k . --dry-run=server    # the cluster validates it

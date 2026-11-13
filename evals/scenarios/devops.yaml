@@ -100,10 +100,10 @@ scenarios:
       - Says where the token goes (an environment variable or the tool's config) and does not ask for it in the chat.
       - Says who looks after it afterwards, as for any other option, without implying ongoing managed hosting.
 
-  - id: detector-cannot-read
+  - id: unfamiliar-stack
     prompt: "can you deploy this? it's written in gleam, compiles to an erlang release"
     expect:
-      - Runs the detector, says what it could not determine, and reasons from the code and the build instead of guessing a stack.
+      - Reads the code and the build to learn what runs and on which port, and says what it could not determine instead of guessing a stack.
       - Asks at most one or two questions, only those whose answer changes the setup.
       - Proposes a setup that fits what the app does (a long-running process with its port), not a stack it recognises better.
 

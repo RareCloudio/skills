@@ -114,7 +114,7 @@ Do the steps in this order; each relies on what the one before proved.
    ```
 
    `--wait` returns non-zero when a service does not become healthy; `logs app`, the same way,
-   says why. Then check from outside with [scripts/check_site.py](../scripts/check_site.py).
+   says why. Then look from outside, as a visitor would ([proving-it-works.md](proving-it-works.md)).
 8. **Backups, with a restore tried once** ([backups.md](backups.md)). The values that join the
    backup job to the Compose file, in `/etc/restic-backup/shop.env`:
 
@@ -151,8 +151,8 @@ Do the steps in this order; each relies on what the one before proved.
 3. **The manifests** from [templates/kubernetes/](../templates/kubernetes/) with `<APP>` set to
    `shop`, also for one quick app (keep the Deployment's probes, limits and security context;
    drop the files that do not fit, as [kubernetes.md](kubernetes.md) says). The rendered output
-   checked with `check_config.py --allow-docker`, then `diff -k`, `apply -k` and `rollout
-   status`. Readiness probe first: it is what every later gate leans on.
+   checked with `kubeconform` and `kubectl apply --dry-run=server`, then `diff -k`, `apply -k` and
+   `rollout status`. Readiness probe first: it is what every later gate leans on.
    The NetworkPolicy in the kustomization keeps other namespaces out; migrations run as a Job
    before each rollout.
 4. **DNS and the certificate:** the name points at the load balancer of the Gateway or Ingress,

@@ -70,7 +70,7 @@ app's own servers needs to reach it.
 - To reach it yourself, use an SSH tunnel: `ssh -L 5432:localhost:5432 <SERVER>`.
 
 Prove it: `ss -ltn | grep -E ':(5432|3306|6379)\b'` shows `127.0.0.1` or the private address,
-and from outside, `scripts/check_site.py` with `--expect-closed 5432,3306,6379` (see
+and from outside, `nc -vz -w 3 <SERVER> 5432` (and 3306, 6379) gets no answer (see
 [proving-it-works.md](proving-it-works.md)). After a change to `pg_hba.conf`, `SELECT * FROM
 pg_hba_file_rules WHERE error IS NOT NULL;` shows lines Postgres could not read.
 

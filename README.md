@@ -10,8 +10,7 @@ npx skills add RareCloudio/skills --skill devops    # only devops
 ```
 
 Installs in Claude Code, Codex, Cursor, Gemini CLI and any agent that supports
-[Agent Skills](https://agentskills.io). `npx` needs Node.js; the helper scripts inside `devops`
-need Python 3.9 or newer.
+[Agent Skills](https://agentskills.io). `npx` needs Node.js.
 
 ## Try it
 
@@ -39,7 +38,7 @@ Open your project and ask the way you would ask a colleague:
 | **Backups** | Back up files and databases off the server, and prove a restore works |
 | **Monitoring** | Set up alerts for a site that is down, a disk that fills up or a certificate about to expire, and read the logs |
 | **Debugging** | Find out why the site is down or slow: DNS, certificate, proxy, app, database, disk, memory |
-| **Cost** | Size the setup for your app and read today's prices from several providers before anything is created |
+| **Cost** | Size the setup for your app and read today's prices before anything is created |
 
 Every config it writes is checked with the real tool before you get it, and every deploy is tested
 from outside. When a check could not run, it says which one. It tells you the price before it

@@ -235,8 +235,8 @@ refused` means either that nothing listens or that a rule such as `ufw reject 54
 when it lists something listening on that port, the refusal comes from a firewall rule; when it does
 not, the port is simply closed.
 
-For the site as a whole, [scripts/check_site.py](../scripts/check_site.py) takes
-`--expect-closed` with the same ports (see [proving-it-works.md](proving-it-works.md)). When
+Run the same `nc -vz` against each of those ports when you look at the whole site from outside
+([proving-it-works.md](proving-it-works.md)). When
 your own network blocks outbound ports, an unreachable port proves nothing; say so instead of
 claiming it.
 

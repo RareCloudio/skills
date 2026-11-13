@@ -8,11 +8,12 @@ is in [firewall.md](firewall.md). Database dumps and restores are in [backups.md
 
 ## Read the project before writing anything
 
-Run [scripts/detect_project.py](../scripts/detect_project.py) on the project folder (the path is
-relative to this skill's folder). It reports the language, the lockfile and package manager,
-the framework, build and start commands, ports, the environment variable names the code reads,
-and any Dockerfile or Compose file already there. Read an existing Dockerfile before replacing
-it: it often encodes a fix someone needed.
+The manifest and the lockfile say the language, the package manager and its version, the
+framework, and the build and start commands (`package.json` scripts, `pyproject.toml`, `go.mod`,
+a `Procfile`). The code says the port it listens on, the environment variable names it reads
+(look for `process.env`, `os.environ`, `getenv`, and the `.env.example` if there is one), whether
+it writes to local disk, and what else must keep running beside the web process. Read an existing
+Dockerfile or Compose file before replacing it: it often encodes a fix someone needed.
 
 Ask the person only for what the files cannot tell you: the domain, which variables are secrets,
 where the image registry is, whether there is data to bring over. When the app has no health
@@ -23,7 +24,7 @@ below leans on it, and a page that renders the home screen is a slow and noisy s
 
 Start from the template for the stack in [templates/dockerfiles/](../templates/dockerfiles/)
 (`node.Dockerfile`, `python.Dockerfile`, `go.Dockerfile`) with the `.dockerignore` beside it,
-and adapt it to what detection found. What each part is for:
+and adapt it to what you found. What each part is for:
 
 - **Two stages.** Compilers, dev dependencies and caches stay in the build stage; the final
   image carries the runtime and the built app. The Go template ends at about 15 MB, the Node
